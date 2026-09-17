@@ -1,0 +1,10 @@
+{
+  "name": "AI Voice Agent",
+  "description": "Production-ready self-hosted AI voice agent and call center dashboard with real-time speech-to-text, local LLM, and Piper TTS.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

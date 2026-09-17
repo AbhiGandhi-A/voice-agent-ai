@@ -190,7 +190,14 @@ ${transcript}`;
 async function setupVite() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      // The preview proxy does not expose Vite's internal HMR websocket.
+      // Disable the client websocket in middleware mode so it cannot report
+      // "WebSocket closed without opened" while the app itself is healthy.
+      server: {
+        middlewareMode: true,
+        hmr: false,
+        watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);

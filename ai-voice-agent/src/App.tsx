@@ -25,8 +25,7 @@ import {
   Message,
   VoiceStatus,
 } from './types';
-import { INITIAL_SERVICES } from './lib/mock-data';
-import { StorageService } from './lib/storage';
+import { ServiceStatus } from './types';
 import { VoiceSessionManager } from './lib/voice-session';
 
 export default function App() {
@@ -35,23 +34,19 @@ export default function App() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<
     'Connected' | 'Connecting' | 'Disconnected' | 'Error'
-  >('Connected');
+  >('Disconnected');
 
-  // Real Persistent State
-  const [conversations, setConversations] = useState<Conversation[]>(() =>
-    StorageService.getConversations()
-  );
-  const [currentConvId, setCurrentConvId] = useState<string>('conv-active');
-  const [calls, setCalls] = useState<Call[]>(() => StorageService.getCalls());
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [currentConvId, setCurrentConvId] = useState<string>('');
+  const [calls, setCalls] = useState<Call[]>([]);
   const [activeLiveCall, setActiveLiveCall] = useState<Call | null>(null);
-  const [contacts, setContacts] = useState<Contact[]>(() => StorageService.getContacts());
-  const [services, setServices] = useState(INITIAL_SERVICES);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [services, setServices] = useState<ServiceStatus[]>([]);
 
-  // Real Persistent Settings
-  const [aiSettings, setAiSettings] = useState(() => StorageService.getAiSettings());
-  const [voiceSettings, setVoiceSettings] = useState(() => StorageService.getVoiceSettings());
-  const [callSettings, setCallSettings] = useState(() => StorageService.getCallSettings());
-  const [systemConfig, setSystemConfig] = useState(() => StorageService.getSystemConfig());
+  const [aiSettings, setAiSettings] = useState({ model: '', temperature: 0.7, maxTokens: 250, systemPrompt: '', historyLimit: 20 });
+  const [voiceSettings, setVoiceSettings] = useState({ whisperModel: '', whisperLanguage: 'en-US', ttsEngine: '', ttsVoice: '', speakingSpeed: 1, silenceThresholdMs: 900, autoDetectVad: true });
+  const [callSettings, setCallSettings] = useState({ autoAnswer: false, aiGreeting: '', maxCallDurationMinutes: 15, enableRecording: false, enableHumanTakeover: false, bargeInEnabled: false });
+  const [systemConfig, setSystemConfig] = useState({ aiServerUrl: '', wsUrl: '', apiKey: '', allowedOrigins: '', mockMode: false });
 
   // Voice Session State
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>('idle');
@@ -60,35 +55,6 @@ export default function App() {
   const [liveInterimText, setLiveInterimText] = useState<string>('');
 
   const voiceManagerRef = useRef<VoiceSessionManager | null>(null);
-
-  // Sync state changes with StorageService
-  useEffect(() => {
-    StorageService.saveConversations(conversations);
-  }, [conversations]);
-
-  useEffect(() => {
-    StorageService.saveCalls(calls);
-  }, [calls]);
-
-  useEffect(() => {
-    StorageService.saveContacts(contacts);
-  }, [contacts]);
-
-  useEffect(() => {
-    StorageService.saveAiSettings(aiSettings);
-  }, [aiSettings]);
-
-  useEffect(() => {
-    StorageService.saveVoiceSettings(voiceSettings);
-  }, [voiceSettings]);
-
-  useEffect(() => {
-    StorageService.saveCallSettings(callSettings);
-  }, [callSettings]);
-
-  useEffect(() => {
-    StorageService.saveSystemConfig(systemConfig);
-  }, [systemConfig]);
 
   // Current active conversation
   const currentConversation: Conversation = conversations.find(
@@ -286,44 +252,23 @@ export default function App() {
   };
 
   // Telephony Handlers
-  const handleStartCall = (phoneNumber: string) => {
-    const contact = contacts.find((c) => c.phone === phoneNumber) || {
-      id: `c-${Date.now()}`,
-      name: `Caller ${phoneNumber}`,
-      phone: phoneNumber,
-      company: 'Direct Line',
-      callCount: 0,
-    };
+  const handleStartCall = async (phoneNumber: string) => {
+    const normalized = phoneNumber.replace(/[\s()-]/g, '');
+    if (!/^\+[1-9]\d{7,14}$/.test(normalized)) return;
 
-    const initialGreeting = callSettings.aiGreeting || 'Hello, how may I help you today?';
-
-    const newCall: Call = {
-      id: `call-${Date.now()}`,
-      phoneNumber,
-      contactName: contact.name,
-      status: 'connected',
-      duration: '00:00',
-      aiStatus: 'AI handled',
-      startedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      date: 'Today',
-      messages: [
-        {
-          id: `cm-${Date.now()}`,
-          role: 'assistant',
-          content: initialGreeting,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-        },
-      ],
-    };
-
-    // Speak the greeting
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      const utter = new SpeechSynthesisUtterance(initialGreeting);
-      window.speechSynthesis.speak(utter);
+    try {
+      const response = await fetch('/api/calls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber: normalized }),
+      });
+      if (!response.ok) throw new Error(`Call request failed (${response.status})`);
+      const call = (await response.json()) as Call;
+      setCalls((prev) => [call, ...prev.filter((item) => item.id !== call.id)]);
+      if (call.status === 'connected') setActiveLiveCall(call);
+    } catch (error) {
+      console.warn('Call initiation unavailable:', error);
     }
-
-    setCalls((prev) => [newCall, ...prev]);
-    setActiveLiveCall(newCall);
   };
 
   const handleLiveCallSendMessage = async (text: string) => {

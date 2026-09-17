@@ -8,7 +8,7 @@ interface DialerViewProps {
 }
 
 export const DialerView: React.FC<DialerViewProps> = ({ onStartCall, recentCalls }) => {
-  const [phoneNumber, setPhoneNumber] = useState('+91 98765 43210');
+  const [phoneNumber, setPhoneNumber] = useState('');
 
   const handleDigit = (digit: string) => {
     setPhoneNumber((prev) => prev + digit);

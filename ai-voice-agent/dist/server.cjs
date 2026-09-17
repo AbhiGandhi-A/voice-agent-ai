@@ -53,7 +53,20 @@ app.get("/api/config", (_req, res) => {
     )
   });
 });
-app.get("/api/health", (req, res) => {
+app.get("/api/health", async (_req, res) => {
+  const backendUrl = process.env.AI_SERVER_HTTP_URL || process.env.AI_SERVER_HTTP_URL_2;
+  if (backendUrl) {
+    try {
+      const upstream = await fetch(`${backendUrl.replace(/\/$/, "")}/health`, {
+        headers: process.env.AI_SERVER_API_KEY ? { Authorization: `Bearer ${process.env.AI_SERVER_API_KEY}` } : void 0,
+        signal: AbortSignal.timeout(5e3)
+      });
+      const data = await upstream.json().catch(() => ({}));
+      return res.status(upstream.ok ? 200 : 503).json({ ...data, status: upstream.ok ? data.status || "ok" : "offline", aiServer: upstream.ok ? "connected" : "offline" });
+    } catch {
+      return res.status(503).json({ status: "offline", aiServer: "offline" });
+    }
+  }
   const memory = process.memoryUsage();
   const apiKey = process.env.GEMINI_API_KEY;
   res.json({
@@ -68,6 +81,24 @@ app.get("/api/health", (req, res) => {
     },
     timestamp: (/* @__PURE__ */ new Date()).toISOString()
   });
+});
+app.post("/api/calls", async (req, res) => {
+  const phoneNumber = typeof req.body?.phoneNumber === "string" ? req.body.phoneNumber : "";
+  if (!/^\\+[1-9]\\d{7,14}$/.test(phoneNumber)) return res.status(400).json({ error: "A valid international phone number is required" });
+  const backendUrl = process.env.AI_SERVER_HTTP_URL || process.env.AI_SERVER_HTTP_URL_2;
+  if (!backendUrl) return res.status(503).json({ error: "Telephony service is not configured." });
+  try {
+    const upstream = await fetch(`${backendUrl.replace(/\/$/, "")}/calls`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...process.env.AI_SERVER_API_KEY ? { Authorization: `Bearer ${process.env.AI_SERVER_API_KEY}` } : {} },
+      body: JSON.stringify({ phoneNumber }),
+      signal: AbortSignal.timeout(1e4)
+    });
+    const body = await upstream.text();
+    res.status(upstream.status).type(upstream.headers.get("content-type") || "application/json").send(body);
+  } catch {
+    res.status(503).json({ error: "AI backend is unavailable." });
+  }
 });
 app.post("/api/chat", async (req, res) => {
   try {

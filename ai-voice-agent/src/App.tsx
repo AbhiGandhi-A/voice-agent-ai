@@ -116,6 +116,21 @@ export default function App() {
       .catch(() => setConnectionStatus('Disconnected'));
   }, []);
 
+  // Load the server-provided Render endpoint without exposing private credentials.
+  useEffect(() => {
+    fetch('/api/config')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((config: { aiServerHttpUrl?: string; aiServerWsUrl?: string } | null) => {
+        if (!config) return;
+        setSystemConfig((current) => ({
+          ...current,
+          aiServerUrl: config.aiServerHttpUrl || current.aiServerUrl,
+          wsUrl: config.aiServerWsUrl || current.wsUrl,
+        }));
+      })
+      .catch(() => undefined);
+  }, []);
+
   // Initialize VoiceSessionManager
   useEffect(() => {
     const manager = new VoiceSessionManager(

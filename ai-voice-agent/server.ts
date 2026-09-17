@@ -26,6 +26,19 @@ function getAI(): GoogleGenAI | null {
 }
 
 // 1. Health & Real Diagnostics Endpoint
+app.get('/api/config', (_req, res) => {
+  res.json({
+    aiServerHttpUrl: process.env.AI_SERVER_HTTP_URL || process.env.AI_SERVER_HTTP_URL_2 || '',
+    aiServerWsUrl: process.env.AI_SERVER_WS_URL || process.env.AI_SERVER_WS_URL_2 || '',
+    configured: Boolean(
+      process.env.AI_SERVER_HTTP_URL ||
+        process.env.AI_SERVER_HTTP_URL_2 ||
+        process.env.AI_SERVER_WS_URL ||
+        process.env.AI_SERVER_WS_URL_2
+    ),
+  });
+});
+
 app.get('/api/health', (req, res) => {
   const memory = process.memoryUsage();
   const apiKey = process.env.GEMINI_API_KEY;
@@ -177,7 +190,14 @@ ${transcript}`;
 async function setupVite() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      // The preview proxy does not expose Vite's internal HMR websocket.
+      // Disable the client websocket in middleware mode so it cannot report
+      // "WebSocket closed without opened" while the app itself is healthy.
+      server: {
+        middlewareMode: true,
+        hmr: false,
+        watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);

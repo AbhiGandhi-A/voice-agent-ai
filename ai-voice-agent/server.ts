@@ -26,6 +26,19 @@ function getAI(): GoogleGenAI | null {
 }
 
 // 1. Health & Real Diagnostics Endpoint
+app.get('/api/config', (_req, res) => {
+  res.json({
+    aiServerHttpUrl: process.env.AI_SERVER_HTTP_URL || process.env.AI_SERVER_HTTP_URL_2 || '',
+    aiServerWsUrl: process.env.AI_SERVER_WS_URL || process.env.AI_SERVER_WS_URL_2 || '',
+    configured: Boolean(
+      process.env.AI_SERVER_HTTP_URL ||
+        process.env.AI_SERVER_HTTP_URL_2 ||
+        process.env.AI_SERVER_WS_URL ||
+        process.env.AI_SERVER_WS_URL_2
+    ),
+  });
+});
+
 app.get('/api/health', (req, res) => {
   const memory = process.memoryUsage();
   const apiKey = process.env.GEMINI_API_KEY;

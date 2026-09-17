@@ -125,9 +125,8 @@ export class VoiceSessionManager {
       // Initialize Web Speech Recognition if available in browser
       this.setupSpeechRecognition();
 
-      if (this.config.serverWsUrl && this.config.serverWsUrl.startsWith('ws')) {
-        // Optional WebSocket connection
-        this.connectRealWebSocket();
+      if (this.config.serverWsUrl) {
+        this.connectRealWebSocket(this.config.serverWsUrl);
       }
 
       this.isListening = true;
@@ -141,10 +140,20 @@ export class VoiceSessionManager {
     }
   }
 
-  private connectRealWebSocket() {
+  private connectRealWebSocket(serverWsUrl: string) {
+    let url: URL;
     try {
-      this.ws = new WebSocket(this.config.serverWsUrl);
+      url = new URL(serverWsUrl);
+      if (url.protocol !== 'ws:' && url.protocol !== 'wss:') return;
+    } catch {
+      return;
+    }
+
+    try {
+      this.ws = new WebSocket(url.toString());
+      let opened = false;
       this.ws.onopen = () => {
+        opened = true;
         this.ws?.send(JSON.stringify({ type: 'session_started', config: this.config }));
       };
       this.ws.onmessage = (event) => {
@@ -158,10 +167,15 @@ export class VoiceSessionManager {
         }
       };
       this.ws.onerror = () => {
-        this.onEvent({
-          type: 'error',
-          text: 'AI Server disconnected. Ensure uvicorn app.main:app is running or enable Mock Mode.',
-        });
+        if (opened) {
+          this.onEvent({
+            type: 'error',
+            text: 'AI Server disconnected. Check the configured Render WebSocket endpoint.',
+          });
+        }
+      };
+      this.ws.onclose = () => {
+        this.ws = null;
       };
     } catch {
       // WS error

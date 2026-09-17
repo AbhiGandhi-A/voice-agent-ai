@@ -117,8 +117,12 @@ export class VoiceSessionManager {
             this.trackAudioVolume();
           }
         } catch (micErr) {
-          console.warn('Microphone permission issue or no mic device:', micErr);
-          // Still proceed in mock mode gracefully with visual indicator
+          const message = micErr instanceof DOMException && micErr.name === 'NotAllowedError'
+            ? 'Microphone permission was denied.'
+            : 'Microphone is unavailable.';
+          this.setStatus('error');
+          this.onEvent({ type: 'error', text: message });
+          return false;
         }
       }
 
@@ -271,10 +275,9 @@ export class VoiceSessionManager {
       const aiReply = data.reply || "I didn't receive a response. Please try again.";
       this.speakText(aiReply);
     } catch (err: unknown) {
-      console.warn('Real AI chat endpoint error, falling back gracefully:', err);
-      // Helpful natural answer if offline or waiting for key
-      const fallbackReply = `I heard you say: "${userText}". I am listening, but connecting to the AI model service encountered a network issue. Please ensure the server is active.`;
-      this.speakText(fallbackReply);
+      const message = err instanceof Error ? err.message : 'AI backend is unavailable.';
+      this.setStatus('error');
+      this.onEvent({ type: 'error', text: message });
     }
   }
 

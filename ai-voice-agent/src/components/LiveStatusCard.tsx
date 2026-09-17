@@ -80,7 +80,7 @@ export const LiveStatusCard: React.FC<LiveStatusCardProps> = ({
           </div>
           <div className="flex items-center gap-1.5 font-medium">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />
-            <span className="text-emerald-400">Active</span>
+            <span className={isActive ? 'text-emerald-400' : 'text-slate-400'}>{isActive ? 'Active' : 'Inactive'}</span>
           </div>
         </div>
 
@@ -111,8 +111,8 @@ export const LiveStatusCard: React.FC<LiveStatusCardProps> = ({
             <span>Processing</span>
           </div>
           <div className="flex items-center gap-1.5 font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />
-            <span className="text-emerald-400">Ready</span>
+            <span className={`w-1.5 h-1.5 rounded-full ${isThinking ? 'bg-amber-400 shadow-[0_0_6px_#fbbf24]' : 'bg-slate-500'}`} />
+            <span className={isThinking ? 'text-amber-400' : 'text-slate-400'}>{isThinking ? 'Processing' : 'Idle'}</span>
           </div>
         </div>
 

@@ -58,7 +58,7 @@ app.get('/api/health', async (_req, res) => {
 
 app.post('/api/calls', async (req, res) => {
   const phoneNumber = typeof req.body?.phoneNumber === 'string' ? req.body.phoneNumber : '';
-  if (!/^\\+[1-9]\\d{7,14}$/.test(phoneNumber)) return res.status(400).json({ error: 'A valid international phone number is required' });
+  if (!/^\+[1-9]\d{7,14}$/.test(phoneNumber)) return res.status(400).json({ error: 'A valid international phone number is required' });
   const backendUrl = process.env.AI_SERVER_HTTP_URL || process.env.AI_SERVER_HTTP_URL_2;
   if (!backendUrl) return res.status(503).json({ error: 'Telephony service is not configured.' });
   try {
@@ -86,11 +86,7 @@ app.post('/api/chat', async (req, res) => {
 
     const ai = getAI();
     if (!ai) {
-      // Graceful conversational response if API key is not yet set
-      return res.json({
-        reply: "I am ready and listening. To activate live Gemini intelligence, please set your GEMINI_API_KEY in the environment settings.",
-        source: 'local_fallback',
-      });
+      return res.status(503).json({ error: 'AI backend is not configured.' });
     }
 
     // Prepare contents array with history
@@ -144,15 +140,13 @@ app.post('/api/summarize', async (req, res) => {
   try {
     const { messages = [], customer = 'Caller', duration = '00:00' } = req.body;
 
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ error: 'A non-empty call transcript is required.' });
+    }
+
     const ai = getAI();
-    if (!ai || messages.length === 0) {
-      return res.json({
-        summary: `Call completed with ${customer}. Total duration: ${duration}.`,
-        outcome: 'Resolved',
-        aiActions: ['Voice call session logged'],
-        customerIntent: 'General Inquiry',
-        followUpRequired: false,
-      });
+    if (!ai) {
+      return res.status(503).json({ error: 'AI backend is not configured.' });
     }
 
     const transcript = messages

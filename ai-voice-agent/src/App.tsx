@@ -461,7 +461,12 @@ export default function App() {
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         <TopHeader
           connectionStatus={connectionStatus}
-          onChangeConnectionStatus={setConnectionStatus}
+          onChangeConnectionStatus={() => {
+    setConnectionStatus('Connecting');
+    fetch('/api/health')
+      .then((res) => setConnectionStatus(res.ok ? 'Connected' : 'Error'))
+      .catch(() => setConnectionStatus('Disconnected'));
+  }}
           onOpenMobileMenu={() => setMobileOpen(true)}
         />
 

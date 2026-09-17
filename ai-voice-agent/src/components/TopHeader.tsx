@@ -96,9 +96,9 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
         {/* Date / Time */}
         <div className="text-slate-400 text-xs hidden md:flex items-center gap-2.5 pl-2 border-l border-slate-800/70 font-mono tracking-tight">
-          <span>Wed, 17 Sep 2025</span>
+          <span>{new Intl.DateTimeFormat(undefined, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).format(new Date())}</span>
           <span className="text-slate-500">•</span>
-          <span>10:24 AM</span>
+          <span>{new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(new Date())}</span>
         </div>
       </div>
     </header>

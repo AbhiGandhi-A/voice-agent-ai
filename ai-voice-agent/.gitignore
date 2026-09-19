@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+/dist/
+dist/
+.vite/
+coverage/
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Database / local runtime
+/prisma/dev.db
+/prisma/dev.db-journal
+*.sqlite
+*.sqlite3
+
+# Temporary files
+/tmp/
+temp/
+*.tmp
+
+# Optional: local generated files
+*.local

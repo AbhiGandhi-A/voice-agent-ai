@@ -8,6 +8,14 @@ export interface VoiceSessionConfig {
   silenceThresholdMs: number;
   systemPrompt?: string;
   serverWsUrl?: string;
+  /**
+   * Supplies the Supabase access token used to authenticate requests to the
+   * Node API (Bearer header). Set externally after auth state changes.
+   */
+  getAuthToken?: () => string | null | Promise<string | null>;
+  chatEndpoint?: string;
+  /** Returns the server conversation id to continue (null starts a new one). */
+  getConversationId?: () => string | null;
 }
 
 export type VoiceEventCallback = (event: {
@@ -124,10 +132,6 @@ export class VoiceSessionManager {
 
       // Initialize Web Speech Recognition if available in browser
       this.setupSpeechRecognition();
-
-      if (this.config.serverWsUrl) {
-        this.connectRealWebSocket(this.config.serverWsUrl);
-      }
 
       this.isListening = true;
       this.setStatus('listening');
@@ -253,18 +257,31 @@ export class VoiceSessionManager {
     this.setStatus('thinking');
 
     try {
-      const response = await fetch('/api/chat', {
+      let token: string | null = null;
+      if (this.config.getAuthToken) {
+        token = await this.config.getAuthToken();
+      }
+
+      const response = await fetch(this.config.chatEndpoint ?? '/api/ai/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           message: userText,
-          history: history.map((m) => ({ role: m.role, content: m.content })),
-          systemPrompt: this.config.systemPrompt,
+          conversationId: this.config.getConversationId?.() ?? undefined,
         }),
       });
 
       if (!response.ok) {
-        throw new Error(`Server returned status ${response.status}`);
+        const body = await response.json().catch(() => null);
+        const message = body && typeof body === 'object' && 'error' in body ? String((body as { error: unknown }).error) : `Server returned status ${response.status}`;
+        const code = body && typeof body === 'object' && 'code' in body ? String((body as { code: unknown }).code) : '';
+        if (code === 'ollama_unavailable') {
+          throw new Error('The AI model service (Ollama) is not reachable.');
+        }
+        throw new Error(message);
       }
 
       const data = await response.json();
@@ -272,8 +289,7 @@ export class VoiceSessionManager {
       this.speakText(aiReply);
     } catch (err: unknown) {
       console.warn('Real AI chat endpoint error, falling back gracefully:', err);
-      // Helpful natural answer if offline or waiting for key
-      const fallbackReply = `I heard you say: "${userText}". I am listening, but connecting to the AI model service encountered a network issue. Please ensure the server is active.`;
+      const fallbackReply = `I heard you say: "${userText}". I am listening, but connecting to the AI model service encountered a network issue. Please ensure the Ollama server is active.`;
       this.speakText(fallbackReply);
     }
   }

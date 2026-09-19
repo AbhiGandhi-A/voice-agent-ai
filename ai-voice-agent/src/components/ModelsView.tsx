@@ -1,85 +1,47 @@
 import React, { useState } from 'react';
-import { Boxes, Download, Check, Play, HardDrive, Cpu, Sparkles } from 'lucide-react';
+import { Boxes, Download, Check, Play, Trash2, Loader2, AlertTriangle } from 'lucide-react';
+import { useAiModels } from '../hooks/useAiModels';
 
 export const ModelsView: React.FC = () => {
+  const { rows, available, loading, error, refresh, testModel, pull, remove } = useAiModels();
   const [testModelResult, setTestModelResult] = useState<string | null>(null);
-  const [isTesting, setIsTesting] = useState(false);
+  const [isTesting, setIsTesting] = useState<string | null>(null);
   const [pullModelName, setPullModelName] = useState('');
-  const [pullProgress, setPullProgress] = useState<number | null>(null);
+  const [pulling, setPulling] = useState<string | null>(null);
+  const [pullError, setPullError] = useState<string | null>(null);
 
-  const models = [
-    {
-      name: 'llama3.2:3b',
-      type: 'LLM Language Engine',
-      size: '2.0 GB',
-      status: 'Active / Loaded in RAM',
-      speed: '78 tokens/sec',
-      context: '128k context',
-      active: true,
-    },
-    {
-      name: 'faster-whisper (small)',
-      type: 'Speech-to-Text (STT)',
-      size: '461 MB',
-      status: 'Ready (INT8 Quantized)',
-      speed: '42ms inference',
-      context: 'Multilingual (99 langs)',
-      active: true,
-    },
-    {
-      name: 'piper-tts (en_US-amy)',
-      type: 'Neural Speech Synthesizer',
-      size: '64 MB',
-      status: 'Ready (ONNX Runtime)',
-      speed: '0.12x Realtime Factor',
-      context: '22,050 Hz 16-bit WAV',
-      active: true,
-    },
-    {
-      name: 'mistral:7b-instruct',
-      type: 'LLM Language Engine',
-      size: '4.1 GB',
-      status: 'Available on disk',
-      speed: '45 tokens/sec',
-      context: '32k context',
-      active: false,
-    },
-    {
-      name: 'piper-tts (hi_IN-roop)',
-      type: 'Neural Hindi TTS',
-      size: '62 MB',
-      status: 'Ready (ONNX)',
-      speed: '0.14x Realtime Factor',
-      context: 'Hindi & Hinglish voice',
-      active: false,
-    },
-  ];
-
-  const handleTest = (modelName: string) => {
-    setIsTesting(true);
+  const handleTest = async (modelName: string) => {
+    setIsTesting(modelName);
     setTestModelResult(null);
-    setTimeout(() => {
-      setIsTesting(false);
-      setTestModelResult(
-        `[${modelName} Test Success]: Generated 32 tokens in 380ms. "Hello! I am ready to converse with zero latency."`
-      );
-    }, 900);
+    const result = await testModel(modelName);
+    setIsTesting(null);
+    setTestModelResult(result);
   };
 
-  const handlePull = (e: React.FormEvent) => {
+  const handlePull = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!pullModelName.trim()) return;
-    setPullProgress(10);
-    const interval = setInterval(() => {
-      setPullProgress((prev) => {
-        if (prev === null || prev >= 100) {
-          clearInterval(interval);
-          setTimeout(() => setPullProgress(null), 1500);
-          return 100;
-        }
-        return prev + 25;
-      });
-    }, 400);
+    const name = pullModelName.trim();
+    if (!name || pulling) return;
+    setPulling(name);
+    setPullError(null);
+    try {
+      await pull(name);
+      setPullModelName('');
+      setPullError(null);
+    } catch (err) {
+      setPullError(err instanceof Error ? err.message : `Failed to pull ${name}`);
+    } finally {
+      setPulling(null);
+      void refresh();
+    }
+  };
+
+  const handleRemove = async (name: string) => {
+    try {
+      await remove(name);
+    } catch {
+      // keep grid as-is if removal fails
+    }
   };
 
   return (
@@ -89,7 +51,7 @@ export const ModelsView: React.FC = () => {
         <div>
           <h2 className="text-2xl font-bold text-white tracking-tight">AI & Voice Models</h2>
           <p className="text-xs text-slate-400 mt-1">
-            Local quantized neural weights running offline on your CPU/GPU. No external subscriptions.
+            Local quantized neural weights served by Ollama. No external subscriptions.
           </p>
         </div>
 
@@ -104,24 +66,39 @@ export const ModelsView: React.FC = () => {
           />
           <button
             type="submit"
-            className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow cursor-pointer"
+            disabled={Boolean(pulling)}
+            className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow cursor-pointer disabled:opacity-50"
           >
-            <Download className="w-3.5 h-3.5" />
-            <span>Pull</span>
+            {pulling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+            <span>{pulling ? 'Pulling…' : 'Pull'}</span>
           </button>
         </form>
       </div>
 
-      {pullProgress !== null && (
+      {!available && !loading && (
+        <div className="p-3.5 rounded-xl bg-amber-950/40 border border-amber-500/40 text-xs text-amber-300 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+          <span>{error ?? 'Ollama is not reachable. Start it on localhost:11434, then refresh the list.'}</span>
+        </div>
+      )}
+
+      {pullError && (
+        <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-500/40 text-xs text-rose-300 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+          <span>{pullError}</span>
+        </div>
+      )}
+
+      {pulling && (
         <div className="p-3.5 rounded-xl bg-indigo-950/40 border border-indigo-500/40 flex flex-col gap-1.5">
           <div className="flex justify-between text-xs text-indigo-300 font-medium">
-            <span>Pulling {pullModelName || 'model'} via Ollama CLI...</span>
-            <span>{pullProgress}%</span>
+            <span>Pulling {pulling} via Ollama…</span>
+            <span className="animate-pulse">Downloading</span>
           </div>
           <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
             <div
-              className="bg-indigo-500 h-full transition-all duration-300"
-              style={{ width: `${pullProgress}%` }}
+              className="bg-indigo-500 h-full animate-pulse"
+              style={{ width: `${50 + Math.random() * 20}%` }}
             />
           </div>
         </div>
@@ -136,7 +113,7 @@ export const ModelsView: React.FC = () => {
 
       {/* Models Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {models.map((mod) => (
+        {rows.map((mod) => (
           <div
             key={mod.name}
             className="p-5 rounded-2xl bg-[#0c1222]/80 border border-slate-800/80 flex flex-col justify-between gap-4 backdrop-blur-xl"
@@ -180,17 +157,40 @@ export const ModelsView: React.FC = () => {
 
             <div className="flex items-center justify-between pt-1 text-xs">
               <span className="text-slate-400 text-[11.5px]">{mod.status}</span>
-              <button
-                onClick={() => handleTest(mod.name)}
-                disabled={isTesting}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 hover:text-white transition-colors cursor-pointer"
-              >
-                <Play className="w-3 h-3 text-indigo-400" />
-                <span>Test Inference</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleRemove(mod.name)}
+                  disabled={!available}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-rose-300 transition-colors cursor-pointer disabled:opacity-40"
+                  title="Remove model from disk"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+                <button
+                  onClick={() => handleTest(mod.name)}
+                  disabled={isTesting !== null || isTesting === mod.name}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 hover:text-white transition-colors cursor-pointer disabled:opacity-40"
+                >
+                  {isTesting === mod.name ? (
+                    <Loader2 className="w-3 h-3 text-indigo-400 animate-spin" />
+                  ) : (
+                    <Play className="w-3 h-3 text-indigo-400" />
+                  )}
+                  <span>Test Inference</span>
+                </button>
+              </div>
             </div>
           </div>
         ))}
+
+        {!loading && rows.length === 0 && (
+          <div className="md:col-span-2 p-8 rounded-2xl bg-[#0c1222]/60 border border-dashed border-slate-800 flex flex-col items-center gap-2 text-center">
+            <Boxes className="w-8 h-8 text-slate-600" />
+            <p className="text-sm text-slate-400">
+              {available ? 'No models installed yet. Pull one above to get started.' : 'Ollama is not reachable — start it and models will appear here.'}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

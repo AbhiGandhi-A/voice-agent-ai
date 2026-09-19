@@ -1,0 +1,252 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  ADMIN
+  SUPERVISOR
+  AGENT
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum ContactStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+enum ConversationType {
+  WEB
+  PHONE
+}
+
+enum ConversationStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum MessageSender {
+  USER
+  ASSISTANT
+  SYSTEM
+  AGENT
+}
+
+enum MessageType {
+  TEXT
+  AUDIO
+  TOOL_CALL
+  EVENT
+}
+
+enum CallDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum CallStatus {
+  IDLE
+  RINGING
+  CONNECTING
+  CONNECTED
+  AI_ACTIVE
+  HUMAN_ACTIVE
+  ON_HOLD
+  TRANSFERRING
+  COMPLETED
+  MISSED
+  FAILED
+}
+
+enum CallAIStatus {
+  AI_HANDLED
+  HUMAN_TAKEOVER
+  TRANSFERRED
+}
+
+enum CallOutcome {
+  RESOLVED
+  ESCALATED
+  FOLLOW_UP_NEEDED
+  UNRESOLVED
+}
+
+model User {
+  id           String         @id @default(cuid())
+  name         String
+  email        String         @unique
+  passwordHash String
+  role         UserRole       @default(AGENT)
+  status       UserStatus     @default(ACTIVE)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  lastLoginAt  DateTime?
+
+  contacts      Contact[]
+  conversations Conversation[]
+  calls         Call[]
+
+  @@map("users")
+}
+
+model Contact {
+  id          String        @id @default(cuid())
+  name        String
+  phone       String
+  email       String?
+  company     String?
+  notes       String?
+  status      ContactStatus @default(ACTIVE)
+  createdById String?
+  createdBy   User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  conversations Conversation[]
+  calls         Call[]
+
+  @@index([phone])
+  @@index([name])
+  @@map("contacts")
+}
+
+model Conversation {
+  id        String             @id @default(cuid())
+  userId    String?
+  user      User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  contactId String?
+  contact   Contact?           @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  type      ConversationType   @default(WEB)
+  status    ConversationStatus @default(ACTIVE)
+  title     String
+  summary   String?
+  startedAt DateTime           @default(now())
+  endedAt   DateTime?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  messages Message[]
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("conversations")
+}
+
+model Message {
+  id             String        @id @default(cuid())
+  conversationId String
+  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         MessageSender
+  content        String
+  messageType    MessageType   @default(TEXT)
+  metadata       String?
+  timestamp      DateTime      @default(now())
+
+  @@index([conversationId])
+  @@index([timestamp])
+  @@map("messages")
+}
+
+model Call {
+  id           String        @id @default(cuid())
+  userId       String?
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  contactId    String?
+  contact      Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  phoneNumber  String
+  contactName  String?
+  direction    CallDirection @default(OUTBOUND)
+  status       CallStatus    @default(CONNECTING)
+  aiStatus     CallAIStatus  @default(AI_HANDLED)
+  startedAt    DateTime      @default(now())
+  answeredAt   DateTime?
+  endedAt      DateTime?
+  duration     Int           @default(0) // Duration in seconds
+  recordingUrl String?
+  transcriptUrl String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  summary  CallSummary?
+  events   CallEvent[]
+  messages CallMessage[]
+
+  @@index([phoneNumber])
+  @@index([status])
+  @@index([createdAt])
+  @@map("calls")
+}
+
+model CallMessage {
+  id        String        @id @default(cuid())
+  callId    String
+  call      Call          @relation(fields: [callId], references: [id], onDelete: Cascade)
+  sender    MessageSender
+  content   String
+  metadata  String?
+  timestamp DateTime      @default(now())
+
+  @@index([callId])
+  @@index([timestamp])
+  @@map("call_messages")
+}
+
+model CallSummary {
+  id               String      @id @default(cuid())
+  callId           String      @unique
+  call             Call        @relation(fields: [callId], references: [id], onDelete: Cascade)
+  summary          String
+  outcome          CallOutcome @default(RESOLVED)
+  customerIntent   String?
+  actionItems      String? // JSON stringified array
+  sentiment        String? // POSITIVE | NEUTRAL | NEGATIVE
+  followUpRequired Boolean     @default(false)
+  createdAt        DateTime    @default(now())
+
+  @@map("call_summaries")
+}
+
+model CallEvent {
+  id        String   @id @default(cuid())
+  callId    String
+  call      Call     @relation(fields: [callId], references: [id], onDelete: Cascade)
+  eventType String
+  payload   String? // JSON string
+  timestamp DateTime @default(now())
+
+  @@index([callId])
+  @@map("call_events")
+}
+
+model SystemSetting {
+  id        String   @id @default(cuid())
+  category  String
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+model IntegrationConfig {
+  id        String   @id @default(cuid())
+  provider  String   @unique
+  category  String
+  status    String   @default("not_configured")
+  config    String?
+  updatedAt DateTime @updatedAt
+
+  @@map("integrations")
+}
+

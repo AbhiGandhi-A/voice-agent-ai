@@ -39,11 +39,19 @@ class VisionDetector:
             top_k=5000,
         )
         print(f"[VISION SERVICE] Loading emotion model {EMOTION_MODEL_NAME} on {self.device}...")
-        self.emotion_classifier = pipeline(
-            "image-classification",
-            model=EMOTION_MODEL_NAME,
-            device=self.device,
-        )
+        try:
+            self.emotion_classifier = pipeline(
+                "image-classification",
+                model=EMOTION_MODEL_NAME,
+                device=self.device,
+                model_kwargs={"local_files_only": True},
+            )
+        except Exception:
+            self.emotion_classifier = pipeline(
+                "image-classification",
+                model=EMOTION_MODEL_NAME,
+                device=self.device,
+            )
         print("[VISION SERVICE] Models loaded and ready.")
 
     @classmethod

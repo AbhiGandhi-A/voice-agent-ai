@@ -53,13 +53,19 @@ async def startup_event():
 
 @app.get("/health", response_model=HealthResponse)
 async def health():
-    return HealthResponse(
-        status="ok",
-        provider="local-python",
-        model=f"{EMOTION_MODEL_NAME} + yunet",
-        device="cpu",
-        uptimeSeconds=int(time.time() - START_TIME),
-    )
+    try:
+        detector = VisionDetector.get_instance()
+        if not detector.face_detector or not detector.emotion_classifier:
+            raise HTTPException(status_code=503, detail="Models not loaded")
+        return HealthResponse(
+            status="ok",
+            provider="local-python",
+            model=f"{EMOTION_MODEL_NAME} + yunet",
+            device="cpu",
+            uptimeSeconds=int(time.time() - START_TIME),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Service unavailable: {str(e)}")
 
 
 @app.post("/analyze-face")

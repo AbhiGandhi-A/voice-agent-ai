@@ -88,16 +88,21 @@ export default function App() {
               cameraVideoRef.current.srcObject = stream;
               cameraVideoRef.current.play().catch(() => undefined);
             }
+            console.log('[VISION] camera=true');
             void dataRef.current.updateCameraState(true);
 
             // Start 1 FPS sampling if face analysis is enabled
             if (data.voiceSettings.faceAnalysisEnabled) {
               intervalId = setInterval(() => {
-                if (!cameraVideoRef.current || !dataRef.current.voiceSettings.cameraEnabled || !dataRef.current.voiceSettings.faceAnalysisEnabled) {
+                const vid = cameraVideoRef.current;
+                if (!vid || !dataRef.current.voiceSettings.cameraEnabled || !dataRef.current.voiceSettings.faceAnalysisEnabled) {
                   return;
                 }
-                const frame = captureVideoFrame(cameraVideoRef.current, 320, 240, 0.65);
+                const frame = captureVideoFrame(vid, 320, 240, 0.65);
                 if (frame) {
+                  console.log(`[VISION] videoWidth=${vid.videoWidth}`);
+                  console.log(`[VISION] videoHeight=${vid.videoHeight}`);
+                  console.log('[VISION] frameCaptured=true');
                   void dataRef.current.processVisionFrame(frame);
                 }
               }, 1000);

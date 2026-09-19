@@ -180,6 +180,20 @@ async function visionResponse(input: AiRouteInput, dependencies: AiRouterDepende
     return { text, model: 'local-vision-router', latencyMs: Date.now() - startedAt, source: 'vision' };
   }
 
+  // 2.5 Stale Vision Result Protection (older than 10 seconds)
+  const isStale = visionState.lastUpdated > 0 && (Date.now() - visionState.lastUpdated) > 10000;
+  if (isStale) {
+    const text = language === 'hi'
+      ? 'कैमरा चालू है, लेकिन मुझे हाल ही का विज़न डेटा प्राप्त नहीं हो रहा है।'
+      : language === 'gu'
+        ? 'કેમેરો ચાલુ છે, પરંતુ મને તાજો વિઝન ડેટા મળી રહ્યો નથી.'
+        : language === 'hinglish'
+          ? 'Camera on hai, lekin latest vision data available nahi hai.'
+          : 'The camera is on, but the latest visual data is currently unavailable or stale.';
+
+    return { text, model: 'local-vision-router', latencyMs: Date.now() - startedAt, source: 'vision' };
+  }
+
   // 3. Camera is ON, but no face detected
   if (!visionState.faceDetected || visionState.faceCount === 0) {
     const text = language === 'hi'

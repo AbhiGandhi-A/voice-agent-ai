@@ -60,7 +60,8 @@ export function parseMemoryCommand(message: string): { action: 'remember' | 'for
 }
 
 export async function webSearch(query: string): Promise<WebSearchResult[]> {
-  const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
+  const normalizedQuery = normalizeSearchQuery(query);
+  const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(normalizedQuery)}&format=json&no_html=1&skip_disambig=1`;
   const response = await fetch(url, { headers: { Accept: 'application/json' } });
   if (!response.ok) throw new Error(`Web search returned ${response.status}.`);
   const data = (await response.json()) as {
@@ -81,6 +82,14 @@ export async function webSearch(query: string): Promise<WebSearchResult[]> {
     }
   }
   return results;
+}
+
+function normalizeSearchQuery(query: string): string {
+  return query
+    .replace(/^\s*(?:find|search|look up|lookup|research|google|retrieve)\s+/i, '')
+    .replace(/^\s*(?:what(?:'s| is)?\s+)?(?:the\s+)?(?:latest|current|recent)\s+(?:information|news|details)\s+(?:about|on)\s+/i, '')
+    .replace(/^\s*(?:the\s+)?(?:information|details)\s+(?:about|on)\s+/i, '')
+    .trim();
 }
 
 function isValidTimezone(timezone: string): boolean {

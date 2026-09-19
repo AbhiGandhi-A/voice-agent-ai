@@ -127,7 +127,7 @@ export const LiveTranscript: React.FC<LiveTranscriptProps> = ({
       {isThinking && (
         <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-purple-950/30 border border-purple-800/40 text-xs text-purple-300 animate-pulse">
           <Sparkles className="w-4 h-4 animate-spin" />
-          <span>AI is processing your query with Ollama...</span>
+          <span>AI is processing your query...</span>
         </div>
       )}
     </div>

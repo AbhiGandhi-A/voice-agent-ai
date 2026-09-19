@@ -44,10 +44,21 @@ export function classifyAiIntent(message: string): AiIntent {
 }
 
 export async function routeAiRequest(input: AiRouteInput, dependencies: AiRouterDependencies = defaultDependencies): Promise<AiRouteResult> {
+  logger.info('[AI ROUTER] request received', { messageLength: input.message.length });
   const intent = classifyAiIntent(input.message);
-  if (intent === 'current_time') return currentTimeResponse(input);
-  if (intent === 'search') return searchWithOllama(input, dependencies);
+  logger.info('[AI ROUTER] intent = ' + (intent === 'current_time' ? 'datetime' : intent));
+  if (intent === 'current_time') {
+    logger.info('[AI ROUTER] provider = runtime-clock');
+    logger.info('[AI ROUTER] executing provider = runtime-clock');
+    return currentTimeResponse(input);
+  }
+  if (intent === 'search') {
+    logger.info('[AI ROUTER] provider = web-search -> ollama-analysis');
+    return searchWithOllama(input, dependencies);
+  }
 
+  logger.info('[AI ROUTER] provider = groq');
+  logger.info('[AI ROUTER] executing provider = groq');
   const result = await dependencies.groq.generate(
     [
       { role: 'system', content: input.systemPrompt },
@@ -60,6 +71,7 @@ export async function routeAiRequest(input: AiRouteInput, dependencies: AiRouter
 }
 
 async function searchWithOllama(input: AiRouteInput, dependencies: AiRouterDependencies): Promise<AiRouteResult> {
+  logger.info('[AI ROUTER] executing provider = web-search');
   let results: WebSearchResult[];
   try {
     results = await dependencies.search(input.message);
@@ -89,11 +101,12 @@ REAL WEB-SEARCH RESULTS:
 ${resultText}`;
 
   logger.info('[OLLAMA] search-analysis started', { resultCount: results.length });
+  logger.info('[AI ROUTER] executing provider = ollama-analysis');
   let analysis;
   try {
     analysis = await dependencies.ollama.generate(
       [{ role: 'system', content: searchPrompt }, { role: 'user', content: input.message }],
-      { temperature: input.temperature, maxTokens: input.maxTokens },
+      { temperature: input.temperature, maxTokens: input.maxTokens, timeoutMs: 60_000 },
     );
   } catch (error) {
     if (error instanceof ApiError) throw error;

@@ -50,6 +50,19 @@ describe('AI provider router', () => {
     expect(ollama.generate).not.toHaveBeenCalled();
   });
 
+  it('routes Hindi date questions to the runtime clock', async () => {
+    const groq = { generate: vi.fn() };
+    const search = vi.fn();
+    const ollama = { generate: vi.fn() };
+
+    const result = await routeAiRequest({ ...input('आज कौन सा दिन है?', 'hi'), runtimeContext: { currentTime: '2026-09-19T09:00:00.000Z', timezone: 'Asia/Kolkata' } }, { groq, search, ollama });
+
+    expect(result.source).toBe('current_time');
+    expect(groq.generate).not.toHaveBeenCalled();
+    expect(search).not.toHaveBeenCalled();
+    expect(ollama.generate).not.toHaveBeenCalled();
+  });
+
   it('keeps search analysis in the active language', async () => {
     const groq = { generate: vi.fn() };
     const search = vi.fn().mockResolvedValue([{ title: 'AI News', url: 'https://example.com/news', snippet: 'News result', source: 'Example' }]);

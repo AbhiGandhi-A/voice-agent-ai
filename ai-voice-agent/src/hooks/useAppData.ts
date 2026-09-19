@@ -354,8 +354,12 @@ export function useAppData(enabled = true): AppData {
         return res.reply;
       } catch (err) {
         const msg =
-          err instanceof ApiError && (err.code === 'ollama_unavailable' || err.status === 502 || err.status === 503)
-            ? 'The AI service is not reachable right now. Start Ollama and try again.'
+          err instanceof ApiError && err.code?.startsWith('groq_')
+            ? err.message
+            : err instanceof ApiError && err.code?.startsWith('search_')
+              ? err.message
+              : err instanceof ApiError && err.code?.startsWith('ollama_')
+                ? 'Search results were found, but Ollama could not analyze them.'
             : 'Could not reach the AI service. Check your connection and try again.';
         appendToSession(newMsg('system', msg));
         return undefined;

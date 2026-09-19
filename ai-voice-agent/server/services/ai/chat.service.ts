@@ -57,6 +57,9 @@ export async function chatWithAi(input: ChatRequest): Promise<ChatResponse> {
 
   const commandResult = await handleMemoryCommand(input.userId, input.message);
   if (commandResult) {
+    logger.info('[AI ROUTER] intent = memory');
+    logger.info('[AI ROUTER] provider = supabase');
+    logger.info('[AI ROUTER] executing provider = supabase');
     const saved = await conversationsService.addMessage(conversationId, 'assistant', commandResult);
     return { reply: commandResult, model: 'memory', latencyMs: 0, conversationId, messageId: saved.id, source: 'memory' };
   }

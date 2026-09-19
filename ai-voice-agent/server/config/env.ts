@@ -37,7 +37,7 @@ export const env = {
   ollamaTimeoutMs: int('OLLAMA_TIMEOUT_MS', 30000),
 
   groqApiKey: required('GROQ_API_KEY', { optional: true }),
-  groqModel: required('GROQ_MODEL', { defaultValue: 'llama-3.3-70b-versatile' }),
+  groqModel: required('GROQ_MODEL', { defaultValue: 'openai/gpt-oss-120b' }),
   groqBaseUrl: required('GROQ_BASE_URL', { defaultValue: 'https://api.groq.com/openai/v1' }),
   groqTimeoutMs: int('GROQ_TIMEOUT_MS', 30000),
 

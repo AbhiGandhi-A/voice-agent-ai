@@ -27,7 +27,7 @@
  */
 import 'dotenv/config';
 import { createHash } from 'crypto';
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
@@ -36,8 +36,7 @@ import pg from 'pg';
 const { Client } = pg;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const MIGRATION_FILE = path.join(ROOT, 'supabase', 'migrations', '0001_init.sql');
-const MIGRATION_NAME = '0001_init';
+const MIGRATIONS_DIR = path.join(ROOT, 'supabase', 'migrations');
 
 function fail(message: string): never {
   console.error(`\n[db:setup] ERROR: ${message}\n`);
@@ -85,7 +84,7 @@ function resolveConnection(): { url: string; host: string } | null {
 
 async function run(): Promise<void> {
   console.log('[db:setup] AI Voice Agent — database setup');
-  console.log(`[db:setup] migration : ${MIGRATION_FILE}`);
+  console.log(`[db:setup] migrations: ${MIGRATIONS_DIR}`);
 
   const conn = resolveConnection();
   if (!conn) {
@@ -104,9 +103,15 @@ async function run(): Promise<void> {
     fail('SUPABASE_URL is missing from `.env`.');
   }
 
-  const sql = readFileSync(MIGRATION_FILE, 'utf8');
-  if (!sql.trim()) fail(`Migration file is empty: ${MIGRATION_FILE}`);
-  const checksum = sha256(sql);
+  const migrations = readdirSync(MIGRATIONS_DIR)
+    .filter((file) => /^\d+_.+\.sql$/i.test(file))
+    .sort()
+    .map((file) => ({
+      file,
+      name: file.replace(/\.sql$/i, ''),
+      path: path.join(MIGRATIONS_DIR, file),
+    }));
+  if (migrations.length === 0) fail(`No SQL migrations found in ${MIGRATIONS_DIR}`);
 
   const client = new Client({
     connectionString: conn.url,
@@ -126,8 +131,6 @@ async function run(): Promise<void> {
   }
 
   console.log(`[db:setup] connected to ${conn.host} ✔`);
-  console.log('[db:setup] checksum  : ' + checksum.slice(0, 16) + '…');
-
   // Ledger table so repeated runs are safe no-ops. Never touches app tables.
   await client.query(
     `create table if not exists public.schema_migrations (
@@ -137,41 +140,40 @@ async function run(): Promise<void> {
      )`
   );
 
-  const existing = await client.query(
-    'select checksum from public.schema_migrations where migration = $1',
-    [MIGRATION_NAME]
-  );
+  for (const migration of migrations) {
+    const sql = readFileSync(migration.path, 'utf8');
+    if (!sql.trim()) fail(`Migration file is empty: ${migration.path}`);
+    const checksum = sha256(sql);
+    const existing = await client.query(
+      'select checksum from public.schema_migrations where migration = $1',
+      [migration.name]
+    );
 
-  let applied = false;
-  if (existing.rowCount! > 0 && existing.rows[0].checksum === checksum) {
-    console.log('[db:setup] 0001_init already applied (checksum match) — no changes made.');
-  } else {
+    if (existing.rowCount! > 0 && existing.rows[0].checksum === checksum) {
+      console.log(`[db:setup] ${migration.name} already applied (checksum match).`);
+      continue;
+    }
+
     try {
       await client.query('begin');
-      // The migration defines LANGUAGE sql helper functions (RLS access
-      // helpers) BEFORE the tables they query. PostgreSQL fully parses a
-      // SQL-language function body at creation time, so a from-scratch run
-      // would fail with 'relation "public.profiles" does not exist'. This is
-      // the standard pg_dump approach: disable body checks for the
-      // transaction; the references resolve fine at call time.
+      // 0001 defines helper functions before their tables exist.
       await client.query('set local check_function_bodies = false');
       await client.query(sql);
       await client.query(
         `insert into public.schema_migrations (migration, checksum)
          values ($1, $2)
          on conflict (migration) do update set checksum = excluded.checksum, applied_at = now()`,
-        [MIGRATION_NAME, checksum]
+        [migration.name, checksum]
       );
       await client.query('commit');
-      applied = true;
+      console.log(`[db:setup] ${migration.name} applied ✔`);
     } catch (err) {
       await client.query('rollback').catch(() => undefined);
       fail(
-        'Migration failed (rolled back).\n' +
+        `Migration ${migration.name} failed (rolled back).\n` +
           `        ${err instanceof Error ? err.message : String(err)}`
       );
     }
-    console.log('[db:setup] ' + (applied ? 'migration applied ✔' : 'migration already applied'));
   }
 
   // Tell PostgREST to reload its schema cache so tables are visible immediately.

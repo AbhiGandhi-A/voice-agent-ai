@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Save, Sparkles, Volume2, PhoneCall, Server, Check, Sliders, Shield } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Save, Sparkles, Volume2, PhoneCall, Server, Check, Sliders, Shield, Trash2 } from 'lucide-react';
 import { AISettings, CallSettings, SystemConfig, VoiceSettings } from '../types';
+import { deleteMemory, listMemories, MemoryRecord, updateMemory } from '../lib/api';
 
 interface SettingsViewProps {
   aiSettings: AISettings;
@@ -28,7 +29,36 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [voice, setVoice] = useState<VoiceSettings>(voiceSettings);
   const [call, setCall] = useState<CallSettings>(callSettings);
   const [sys, setSys] = useState<SystemConfig>(systemConfig);
+  const [memories, setMemories] = useState<MemoryRecord[]>([]);
+  const [memoryError, setMemoryError] = useState('');
   const [savedNotice, setSavedNotice] = useState(false);
+
+  useEffect(() => {
+    if (activeSection !== 'system') return;
+    listMemories()
+      .then((response) => setMemories(response.memories))
+      .catch(() => setMemoryError('Could not load memories.'));
+  }, [activeSection]);
+
+  const handleDeleteMemory = async (id: string) => {
+    try {
+      await deleteMemory(id);
+      setMemories((current) => current.filter((item) => item.id !== id));
+    } catch {
+      setMemoryError('Could not delete that memory.');
+    }
+  };
+
+  const handleUpdateMemory = async (item: MemoryRecord) => {
+    const memory = window.prompt('Update memory', item.memory)?.trim();
+    if (!memory || memory === item.memory) return;
+    try {
+      const response = await updateMemory(item.id, { memory });
+      setMemories((current) => current.map((entry) => (entry.id === item.id ? response.memory : entry)));
+    } catch {
+      setMemoryError('Could not update that memory.');
+    }
+  };
 
   const handleSaveAll = () => {
     onSaveAiSettings(ai);
@@ -370,6 +400,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               >
                 Live Server Mode
               </button>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <div className="border-b border-slate-800 pb-3">
+                <h3 className="text-sm font-bold text-white">Persistent User Memory</h3>
+                <p className="text-[11.5px] text-slate-400 mt-0.5">Memories are saved to your authenticated Supabase account only.</p>
+              </div>
+              {memoryError && <p className="text-xs text-rose-300">{memoryError}</p>}
+              {memories.length === 0 ? (
+                <p className="text-xs text-slate-500">No saved memories.</p>
+              ) : memories.map((item) => (
+                <div key={item.id} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[#080d19] border border-slate-800">
+                  <span className="text-xs text-slate-200">{item.memory}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button type="button" onClick={() => void handleUpdateMemory(item)} className="text-xs text-indigo-300 hover:text-white">Edit</button>
+                    <button type="button" onClick={() => void handleDeleteMemory(item.id)} className="p-1 text-rose-400 hover:text-rose-300" title="Delete memory" aria-label="Delete memory">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}

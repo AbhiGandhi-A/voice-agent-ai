@@ -101,6 +101,19 @@ export const conversationsService = {
     return data;
   },
 
+  async getByIdForUser(conversationId: string, userId: string): Promise<Record<string, unknown>> {
+    const client = getAdminClient();
+    if (!client) throw new ApiError(503, 'db_unavailable', 'Database connection failed.');
+    const { data, error } = await client
+      .from('conversations')
+      .select('*')
+      .eq('id', conversationId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error || !data) throw new ApiError(404, 'not_found', 'Conversation not found.');
+    return data;
+  },
+
   async listMessages(conversationId: string, params: { page?: number } = {}): Promise<{ messages: MessageRecord[]; total: number }> {
     const client = getAdminClient();
     if (!client) throw new ApiError(503, 'db_unavailable', 'Database connection failed.');

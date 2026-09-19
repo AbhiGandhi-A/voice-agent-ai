@@ -28,6 +28,7 @@ import {
   HealthResponse,
   saveSettings,
   sendChat as apiSendChat,
+  RuntimeContext,
   startOutboundCall as apiStartOutboundCall,
   summarizeCall as apiSummarizeCall,
 } from '../lib/api';
@@ -104,6 +105,16 @@ function blankConversation(id: string, title: string, messages: Message[] = []):
     type: 'web',
     status: 'active',
     messages,
+  };
+}
+
+function getRuntimeContext(): RuntimeContext {
+  const now = new Date();
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  return {
+    currentTime: now.toISOString(),
+    timezone,
+    localDateTime: new Intl.DateTimeFormat('en-US', { dateStyle: 'full', timeStyle: 'long', timeZone: timezone }).format(now),
   };
 }
 
@@ -331,6 +342,7 @@ export function useAppData(enabled = true): AppData {
         const res = await apiSendChat({
           message: trimmed,
           conversationId: sessionConvIdRef.current === CONV_PLACEHOLDER_ID ? undefined : sessionConvIdRef.current,
+          runtimeContext: getRuntimeContext(),
         });
         if (res.conversationId) {
           promotePlaceholderToServer(res.conversationId, trimmed.slice(0, 40));

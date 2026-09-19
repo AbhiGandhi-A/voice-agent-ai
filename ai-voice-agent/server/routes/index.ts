@@ -10,6 +10,7 @@ import { analyticsRouter } from './analytics.routes';
 import { settingsRouter } from './settings.routes';
 import { telephonyRouter } from './telephony.routes';
 import { webhookRouter } from './telephony-webhook.routes';
+import { memoriesRouter } from './memories.routes';
 
 export function buildApiRouter(): Router {
   const router = Router();
@@ -28,6 +29,7 @@ export function buildApiRouter(): Router {
 
   router.use('/analytics', requireAuth, analyticsRouter);
   router.use('/settings', requireAuth, settingsRouter);
+  router.use('/memories', requireAuth, memoriesRouter);
 
   return router;
 }

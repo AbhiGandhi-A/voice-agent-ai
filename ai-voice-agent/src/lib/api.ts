@@ -120,7 +120,28 @@ export const fetchAiStatus = () => api.get<{ available: boolean; model: string }
 export const fetchModels = () => api.get<{ available: boolean; count: number; models: OllamaModel[] }>('/ai/models');
 export const pullModel = (name: string) => api.post(`/ai/models/${encodeURIComponent(name)}/pull`);
 export const deleteModel = (name: string) => api.delete(`/ai/models/${encodeURIComponent(name)}`);
-export const sendChat = (payload: { message: string; conversationId?: string; contactId?: string }) => api.post<ChatResult>('/ai/chat', payload);
+export interface RuntimeContext {
+  currentTime: string;
+  timezone: string;
+  localDateTime: string;
+}
+
+export const sendChat = (payload: { message: string; conversationId?: string; contactId?: string; runtimeContext?: RuntimeContext }) => api.post<ChatResult>('/ai/chat', payload);
+
+export interface MemoryRecord {
+  id: string;
+  userId: string;
+  memory: string;
+  category: string | null;
+  importance: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const listMemories = () => api.get<{ memories: MemoryRecord[] }>('/memories');
+export const createMemory = (memory: { memory: string; category?: string; importance?: number }) => api.post<{ memory: MemoryRecord }>('/memories', memory);
+export const updateMemory = (id: string, memory: Partial<{ memory: string; category: string; importance: number }>) => api.patch<{ memory: MemoryRecord }>(`/memories/${id}`, memory);
+export const deleteMemory = (id: string) => api.delete<{ ok: boolean }>(`/memories/${id}`);
 
 // ─── Contacts ──────────────────────────────────────────────────────────
 export interface BackendContact {

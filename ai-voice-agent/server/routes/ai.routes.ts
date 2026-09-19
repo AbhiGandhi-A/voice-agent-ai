@@ -22,10 +22,19 @@ aiRouter.get('/models', async (_req, res) => {
   res.json({ available: true, models, count: models.length });
 });
 
-aiRouter.post('/chat', aiRateLimit, validate(z.object({ message: z.string().min(1).max(4000), conversationId: z.string().uuid().optional(), contactId: z.string().uuid().optional() })), async (req, res) => {
-  const { message, conversationId, contactId } = req.body as { message: string; conversationId?: string; contactId?: string };
+aiRouter.post('/chat', aiRateLimit, validate(z.object({
+  message: z.string().min(1).max(4000),
+  conversationId: z.string().uuid().optional(),
+  contactId: z.string().uuid().optional(),
+  runtimeContext: z.object({
+    currentTime: z.string().datetime().optional(),
+    timezone: z.string().max(100).optional(),
+    localDateTime: z.string().max(200).optional(),
+  }).optional(),
+})), async (req, res) => {
+  const { message, conversationId, contactId, runtimeContext } = req.body as { message: string; conversationId?: string; contactId?: string; runtimeContext?: { currentTime?: string; timezone?: string; localDateTime?: string } };
   try {
-    const result = await chatWithAi({ userId: req.user!.id, message, conversationId, contactId });
+    const result = await chatWithAi({ userId: req.user!.id, message, conversationId, contactId, runtimeContext });
     res.json(result);
   } catch (err) {
     if (err instanceof ApiError) {

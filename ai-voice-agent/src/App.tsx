@@ -180,7 +180,7 @@ export default function App() {
   const handleRefreshServices = useCallback(() => {
     setManualStatus(null);
     void data.onRefreshServices();
-  }, [data]);
+  }, [data.onRefreshServices]);
 
   // ── Auth gate ──────────────────────────────────────────────────────────
   if (auth.loading) {

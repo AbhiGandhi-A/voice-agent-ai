@@ -20,11 +20,20 @@ try { Invoke-RestMethod $ollama -TimeoutSec 2 | Out-Null } catch {
   Write-Host "WARN: Ollama not reachable on 11434 - start it first (ollama serve / the Ollama app)." -ForegroundColor Yellow
 }
 
-if (-not (Get-Command cloudflared -ErrorAction SilentlyContinue)) {
-  Write-Error "cloudflared not found on PATH. Install it: winget install --id Cloudflare.cloudflared"
+$cloudflaredCommand = Get-Command cloudflared -ErrorAction SilentlyContinue
+$cloudflaredPath = if ($cloudflaredCommand) { $cloudflaredCommand.Source } else {
+  @(
+    "$env:ProgramFiles\cloudflared\cloudflared.exe",
+    "${env:ProgramFiles(x86)}\cloudflared\cloudflared.exe",
+    "$env:LOCALAPPDATA\cloudflared\cloudflared.exe"
+  ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+}
+
+if (-not $cloudflaredPath) {
+  Write-Error "cloudflared was not found on PATH or in the standard install locations. Install it: winget install --id Cloudflare.cloudflared"
   exit 1
 }
 
 Write-Host "Starting Cloudflare quick tunnel -> http://127.0.0.1:$Port" -ForegroundColor Cyan
 Write-Host "Watch the log for a 'https://<random>.trycloudflare.com' URL." -ForegroundColor Cyan
-cloudflared tunnel --url "http://127.0.0.1:$Port"
+& $cloudflaredPath tunnel --url "http://127.0.0.1:$Port"

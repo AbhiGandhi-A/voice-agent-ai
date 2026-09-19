@@ -113,6 +113,14 @@ if (isMain) {
   };
   process.on('SIGINT', handleExit);
   process.on('SIGTERM', handleExit);
+  // Express 4 does not catch rejections from async route handlers. Rather than
+  // letting one failing request kill the whole server, log it and keep serving
+  // (the route will 500 to that caller instead of hanging the process).
+  process.on('unhandledRejection', (reason) => {
+    logger.error('unhandled_rejection', {
+      error: reason instanceof Error ? reason.message : String(reason),
+    });
+  });
 }
 
 function pathToFileUrl(p: string): string {

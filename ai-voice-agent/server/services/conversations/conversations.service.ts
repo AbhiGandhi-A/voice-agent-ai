@@ -63,7 +63,7 @@ export const conversationsService = {
 
     let query = client
       .from('conversations')
-      .select('id, title, type, status, started_at, updated_at, summary, messages(message_count)', { count: 'exact' })
+      .select('id, title, type, status, started_at, updated_at, summary, messages(count)', { count: 'exact' })
       .eq('user_id', userId)
       .order('updated_at', { ascending: false });
 
@@ -73,7 +73,10 @@ export const conversationsService = {
     query = query.range(offset, offset + limit - 1);
 
     const { data, error, count } = await query;
-    if (error) throw new ApiError(500, 'db_error', 'Failed to list conversations.');
+    if (error) {
+      logger.error('conversations_list_failed', { userId, message: error.message });
+      throw new ApiError(500, 'db_error', 'Failed to list conversations.');
+    }
 
     const conversations: ConversationSummary[] = (data ?? []).map((row) => ({
       id: row.id as string,
@@ -82,7 +85,7 @@ export const conversationsService = {
       status: row.status as string,
       startedAt: row.started_at as string,
       updatedAt: row.updated_at as string,
-      messageCount: Array.isArray(row.messages) ? row.messages.length : 0,
+      messageCount: Array.isArray(row.messages) ? Number(row.messages[0]?.count ?? 0) : 0,
       lastMessage: null,
       summary: (row.summary as string) ?? null,
     }));

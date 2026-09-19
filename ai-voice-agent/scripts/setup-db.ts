@@ -148,6 +148,13 @@ async function run(): Promise<void> {
   } else {
     try {
       await client.query('begin');
+      // The migration defines LANGUAGE sql helper functions (RLS access
+      // helpers) BEFORE the tables they query. PostgreSQL fully parses a
+      // SQL-language function body at creation time, so a from-scratch run
+      // would fail with 'relation "public.profiles" does not exist'. This is
+      // the standard pg_dump approach: disable body checks for the
+      // transaction; the references resolve fine at call time.
+      await client.query('set local check_function_bodies = false');
       await client.query(sql);
       await client.query(
         `insert into public.schema_migrations (migration, checksum)

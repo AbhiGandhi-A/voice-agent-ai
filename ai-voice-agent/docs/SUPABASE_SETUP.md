@@ -53,10 +53,16 @@ It creates:
   that automatically creates a `profiles` row when a user signs up.
 
 The migration is idempotent — safe to re-run; `npm run db:setup` skips it when
-the stored checksum already matches. **Alternative:** open **SQL Editor → New
-query** in the Supabase dashboard and run the entire contents of
-`supabase/migrations/0001_init.sql` — then run `notify pgrst, 'reload schema';`
-in SQL Editor.
+the stored checksum already matches.
+
+> **Why `npm run db:setup` (not the SQL editor)?** The migration defines
+> `LANGUAGE sql` helper functions before the tables they query. Postgres parses
+> a SQL-language function body at creation time, so pasting the file into the
+> dashboard SQL editor from scratch fails with
+> `relation "public.profiles" does not exist`. `npm run db:setup` runs the file
+> inside a transaction with `check_function_bodies = off` (the standard
+> `pg_dump` trick), so it applies cleanly. If you do use the SQL editor
+> instead, run `set check_function_bodies = off;` first.
 
 ## 3. Create your first user
 

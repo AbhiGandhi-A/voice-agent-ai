@@ -17,10 +17,11 @@ export interface WebSearchResult {
   title: string;
   url: string;
   snippet: string;
+  source: string;
 }
 
-const REALTIME_WORDS = /\b(latest|today|current|recent|news|price|live|now|this week|this month|2026)\b/i;
-const TIME_WORDS = /\b(date|day|time|today|tomorrow|yesterday|what time|which date)\b/i;
+const SEARCH_INTENT = /\b(find|search|look up|lookup|research|google|web search|search the web|retrieve|latest|recent|news|current price|current ceo|best .{0,30}(?:courses|hotels|restaurants|products)|what happened today)\b/i;
+const CURRENT_TIME_INTENT = /\b(what(?:'s| is)?\s+(?:the\s+)?(?:date|day|time)|which date|what day|what time|today(?:'s| is the)? date|tomorrow(?:'s| is the)? date|yesterday(?:'s| was the)? date)\b|(?:आज|તારીખ|દિવસ|સમય).*(?:कौन|क्या|છે|શું|આજે|today|date|day|time)/i;
 
 export function getCurrentTime(timezone?: string, now = new Date()): CurrentTimeResult {
   const resolvedTimezone = timezone && isValidTimezone(timezone)
@@ -46,8 +47,8 @@ export function getCurrentTime(timezone?: string, now = new Date()): CurrentTime
 }
 
 export function selectRealtimeTool(message: string): 'current_time' | 'web_search' | null {
-  if (TIME_WORDS.test(message)) return 'current_time';
-  return REALTIME_WORDS.test(message) ? 'web_search' : null;
+  if (CURRENT_TIME_INTENT.test(message) && !SEARCH_INTENT.test(message)) return 'current_time';
+  return SEARCH_INTENT.test(message) ? 'web_search' : null;
 }
 
 export function parseMemoryCommand(message: string): { action: 'remember' | 'forget'; text: string } | null {
@@ -70,12 +71,12 @@ export async function webSearch(query: string): Promise<WebSearchResult[]> {
   };
   const results: WebSearchResult[] = [];
   if (data.AbstractText && data.AbstractURL) {
-    results.push({ title: data.AbstractSource || query, url: data.AbstractURL, snippet: data.AbstractText });
+    results.push({ title: data.AbstractSource || query, url: data.AbstractURL, snippet: data.AbstractText, source: data.AbstractSource || 'DuckDuckGo' });
   }
   for (const topic of data.RelatedTopics ?? []) {
     const nested = topic.Topics ?? [topic];
     for (const item of nested) {
-      if (item.Text && item.FirstURL) results.push({ title: item.Text.split(' - ')[0], url: item.FirstURL, snippet: item.Text });
+      if (item.Text && item.FirstURL) results.push({ title: item.Text.split(' - ')[0], url: item.FirstURL, snippet: item.Text, source: 'DuckDuckGo' });
       if (results.length >= 5) return results;
     }
   }

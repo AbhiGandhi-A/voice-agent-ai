@@ -33,7 +33,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [memories, setMemories] = useState<MemoryRecord[]>([]);
   const [memoryError, setMemoryError] = useState('');
   const [savedNotice, setSavedNotice] = useState(false);
-  const [cameraEnabled, setCameraEnabled] = useState(false);
+  const [cameraEnabled, setCameraEnabled] = useState(voiceSettings.cameraEnabled);
   const [cameraError, setCameraError] = useState('');
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -56,6 +56,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   }, [cameraEnabled]);
 
+  useEffect(() => {
+    if (voiceSettings.cameraEnabled !== cameraEnabled) {
+      setCameraEnabled(voiceSettings.cameraEnabled);
+    }
+  }, [voiceSettings.cameraEnabled]);
+
+  useEffect(() => {
+    if (cameraEnabled && !cameraStreamRef.current) {
+      void toggleCamera(true);
+    }
+    // The persisted preference should request a fresh local stream when the
+    // settings page is reopened; the stream itself is never persisted.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const toggleCamera = async (enabled: boolean) => {
     setCameraError('');
     if (!enabled) {
@@ -63,6 +78,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       cameraStreamRef.current = null;
       if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
       setCameraEnabled(false);
+      setVoice((current) => ({ ...current, cameraEnabled: false }));
       return;
     }
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -75,8 +91,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       cameraStreamRef.current = stream;
       if (cameraVideoRef.current) cameraVideoRef.current.srcObject = stream;
       setCameraEnabled(true);
+      setVoice((current) => ({ ...current, cameraEnabled: true }));
     } catch (error) {
       setCameraEnabled(false);
+      setVoice((current) => ({ ...current, cameraEnabled: false }));
       setCameraError(cameraErrorMessage(error));
     }
   };

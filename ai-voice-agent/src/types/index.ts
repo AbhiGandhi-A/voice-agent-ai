@@ -100,6 +100,7 @@ export interface VoiceSettings {
   silenceThresholdMs: number;
   autoDetectVad: boolean;
   autoWake: boolean;
+  cameraEnabled: boolean;
 }
 
 export interface CallSettings {

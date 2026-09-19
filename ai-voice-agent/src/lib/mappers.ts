@@ -34,6 +34,7 @@ export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
   silenceThresholdMs: 900,
   autoDetectVad: true,
   autoWake: false,
+  cameraEnabled: false,
 };
 
 export const DEFAULT_CALL_SETTINGS: CallSettings = {

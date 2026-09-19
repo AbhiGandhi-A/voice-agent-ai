@@ -18,6 +18,7 @@ export interface UserSettings {
     silenceThresholdMs: number;
     autoDetectVad: boolean;
     autoWake: boolean;
+    cameraEnabled: boolean;
   };
   call: {
     autoAnswer: boolean;
@@ -47,6 +48,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     silenceThresholdMs: 900,
     autoDetectVad: true,
     autoWake: false,
+    cameraEnabled: false,
   },
   call: {
     autoAnswer: true,

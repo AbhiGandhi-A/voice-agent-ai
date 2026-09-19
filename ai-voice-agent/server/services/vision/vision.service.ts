@@ -1,5 +1,4 @@
 import { spawn, ChildProcess } from 'child_process';
-import path from 'path';
 import { logger } from '../../utils/logger';
 
 export interface VisionAnalysisResult {
@@ -31,13 +30,17 @@ export interface CachedVisionState extends VisionAnalysisResult {
 }
 
 const PYTHON_VISION_URL = process.env.VISION_SERVICE_URL || 'http://127.0.0.1:8000';
-const REQUEST_TIMEOUT_MS = 3000;
-const HEALTH_TIMEOUT_MS = 1500;
+const REQUEST_TIMEOUT_MS = 12000;
+const HEALTH_TIMEOUT_MS = 3000;
 
 export class VisionService {
   private pythonProcess: ChildProcess | null = null;
   private isSpawning = false;
   private spawnAttempts = 0;
+  private maxSpawnAttempts = 3;
+  private startupPromise: Promise<boolean> | null = null;
+  private isManuallyStarted = false;
+  private frameInFlight = false;
 
   private latestState: CachedVisionState = {
     faceDetected: false,
@@ -52,12 +55,75 @@ export class VisionService {
     lastUpdated: 0,
   };
 
-  public startServiceProcess(): void {
-    if (this.pythonProcess || this.isSpawning || this.spawnAttempts > 3) return;
+  /**
+   * Check if the vision service endpoint is currently responding to /health.
+   */
+  public async isServiceResponsive(timeoutMs = 1500): Promise<boolean> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(`${PYTHON_VISION_URL}/health`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        signal: controller.signal,
+      });
+      return response.ok;
+    } catch {
+      return false;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Ensures the vision service is running:
+   * First probes the HTTP endpoint to detect any manually started instance.
+   * If not responding, safely spawns a single child process.
+   */
+  public async ensureVisionService(): Promise<boolean> {
+    if (this.startupPromise) {
+      return this.startupPromise;
+    }
+
+    const alive = await this.isServiceResponsive();
+    if (alive) {
+      this.latestState.serviceAvailable = true;
+      if (!this.pythonProcess && !this.isManuallyStarted) {
+        this.isManuallyStarted = true;
+        logger.info(`[VISION] Existing Python vision service detected at ${PYTHON_VISION_URL}`);
+      }
+      return true;
+    }
+
+    if (process.env.NODE_ENV === 'test') {
+      return false;
+    }
+
+    this.startupPromise = this.doSpawnAndVerify().finally(() => {
+      this.startupPromise = null;
+    });
+
+    return this.startupPromise;
+  }
+
+  private async doSpawnAndVerify(): Promise<boolean> {
+    if (this.pythonProcess || this.isSpawning || this.spawnAttempts >= this.maxSpawnAttempts) {
+      return false;
+    }
+
+    const alreadyUp = await this.isServiceResponsive(1000);
+    if (alreadyUp) {
+      this.latestState.serviceAvailable = true;
+      this.isManuallyStarted = true;
+      return true;
+    }
+
     this.isSpawning = true;
     this.spawnAttempts++;
     const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+
     try {
+      logger.info(`[VISION] Spawning Python vision service (attempt ${this.spawnAttempts}/${this.maxSpawnAttempts})...`);
       const proc = spawn(pythonCmd, ['vision_service/main.py'], {
         cwd: process.cwd(),
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -87,12 +153,29 @@ export class VisionService {
 
       this.pythonProcess = proc;
       this.isSpawning = false;
+
+      // Poll /health up to 8 times to verify service readiness
+      for (let i = 0; i < 8; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        if (await this.isServiceResponsive(800)) {
+          this.latestState.serviceAvailable = true;
+          logger.info(`[VISION] Python vision service is now online and ready on ${PYTHON_VISION_URL}`);
+          return true;
+        }
+      }
+
+      return false;
     } catch (err) {
       logger.warn('[VISION] Could not spawn python process', {
         error: err instanceof Error ? err.message : String(err),
       });
       this.isSpawning = false;
+      return false;
     }
+  }
+
+  public startServiceProcess(): void {
+    void this.ensureVisionService();
   }
 
   public stopServiceProcess(): void {
@@ -119,6 +202,7 @@ export class VisionService {
       });
 
       if (!response.ok) {
+        this.latestState.serviceAvailable = false;
         return {
           status: 'offline',
           available: false,
@@ -144,10 +228,6 @@ export class VisionService {
       };
     } catch (error) {
       this.latestState.serviceAvailable = false;
-      // If offline and not running in test mode, attempt to auto-start Python service
-      if (process.env.NODE_ENV !== 'test') {
-        this.startServiceProcess();
-      }
       return {
         status: 'offline',
         available: false,
@@ -178,6 +258,23 @@ export class VisionService {
       };
     }
 
+    if (this.frameInFlight) {
+      logger.debug('[VISION] Frame request skipped because another frame is in flight');
+      return {
+        faceDetected: this.latestState.faceDetected,
+        faceCount: this.latestState.faceCount,
+        expression: this.latestState.expression,
+        confidence: this.latestState.confidence,
+        landmarksDetected: this.latestState.landmarksDetected,
+        timestamp: this.latestState.timestamp,
+        processingTimeMs: this.latestState.processingTimeMs,
+        allExpressions: this.latestState.allExpressions,
+        available: this.latestState.serviceAvailable,
+      };
+    }
+
+    this.frameInFlight = true;
+    const startedAt = Date.now();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -201,8 +298,8 @@ export class VisionService {
           confidence: 0,
           landmarksDetected: false,
           timestamp: new Date().toISOString(),
-          processingTimeMs: 0,
-          available: false,
+          processingTimeMs: Date.now() - startedAt,
+          available: this.latestState.serviceAvailable,
         };
       }
 
@@ -216,12 +313,14 @@ export class VisionService {
         lastUpdated: Date.now(),
       };
 
+      const duration = Date.now() - startedAt;
+      logger.info(`[VISION] Frame analyzed in ${duration}ms: face=${data.faceDetected} (${data.faceCount}) expr=${data.expression} conf=${data.confidence}`);
+
       return data;
     } catch (error) {
-      logger.warn('[VISION] Python service request failed', {
+      logger.warn('[VISION] Python vision frame analysis failed', {
         message: error instanceof Error ? error.message : 'connection refused',
       });
-      this.latestState.serviceAvailable = false;
       return {
         faceDetected: false,
         faceCount: 0,
@@ -229,11 +328,12 @@ export class VisionService {
         confidence: 0,
         landmarksDetected: false,
         timestamp: new Date().toISOString(),
-        processingTimeMs: 0,
-        available: false,
+        processingTimeMs: Date.now() - startedAt,
+        available: this.latestState.serviceAvailable,
       };
     } finally {
       clearTimeout(timer);
+      this.frameInFlight = false;
     }
   }
 
@@ -252,4 +352,3 @@ export class VisionService {
 }
 
 export const visionService = new VisionService();
-

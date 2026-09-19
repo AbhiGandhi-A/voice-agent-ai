@@ -2,6 +2,9 @@ type Meta = Record<string, unknown>;
 
 /** Structured JSON-line logger. Never logs secrets (only pre-sanitized fields reach here). */
 export const logger = {
+  debug(message: string, meta: Meta = {}): void {
+    write('info', message, meta);
+  },
   info(message: string, meta: Meta = {}): void {
     write('info', message, meta);
   },

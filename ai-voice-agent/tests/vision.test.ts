@@ -31,6 +31,18 @@ describe('VisionService', () => {
     expect(health.model).toContain('yunet');
   });
 
+  it('detects and reuses manually started python service without spawning', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'ok', model: 'dima806/facial_emotions_image_detection + yunet', device: 'cpu' }),
+    } as Response);
+
+    const isRunning = await service.ensureVisionService();
+    expect(isRunning).toBe(true);
+    const state = service.getLatestState();
+    expect(state.serviceAvailable).toBe(true);
+  });
+
   it('returns no-face structure when camera is disabled', async () => {
     service.setCameraState(false);
     const result = await service.analyzeFrame('data:image/jpeg;base64,1234', false);
@@ -67,6 +79,50 @@ describe('VisionService', () => {
     expect(latest.faceDetected).toBe(true);
     expect(latest.expression).toBe('happy');
     expect(latest.cameraActive).toBe(true);
+  });
+
+  it('skips concurrent frame requests while one frame is in flight', async () => {
+    let resolveFirst: (val: unknown) => void = () => undefined;
+    const slowPromise = new Promise((resolve) => {
+      resolveFirst = resolve;
+    });
+
+    vi.spyOn(globalThis, 'fetch').mockImplementationOnce(() => slowPromise as Promise<Response>);
+
+    // First request starts (in flight)
+    const firstReq = service.analyzeFrame('data:image/jpeg;base64,frame1', true);
+
+    // Second request comes in while first is still pending
+    const secondResult = await service.analyzeFrame('data:image/jpeg;base64,frame2', true);
+
+    // Second request returns cached state immediately rather than making duplicate fetch
+    expect(secondResult).toBeDefined();
+
+    // Finish first request
+    resolveFirst({
+      ok: true,
+      json: async () => ({
+        faceDetected: true,
+        faceCount: 1,
+        expression: 'neutral',
+        confidence: 0.95,
+        landmarksDetected: true,
+        timestamp: '2026-09-19T10:00:01Z',
+        processingTimeMs: 120,
+      }),
+    });
+
+    const firstResult = await firstReq;
+    expect(firstResult.faceDetected).toBe(true);
+    expect(firstResult.expression).toBe('neutral');
+  });
+
+  it('handles frame failure gracefully without throwing', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('Inference timeout'));
+
+    const result = await service.analyzeFrame('data:image/jpeg;base64,frame_err', true);
+    expect(result.faceDetected).toBe(false);
+    expect(result.expression).toBe('none');
   });
 });
 

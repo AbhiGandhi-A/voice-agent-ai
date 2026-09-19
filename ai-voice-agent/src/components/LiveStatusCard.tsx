@@ -27,11 +27,7 @@ export const LiveStatusCard: React.FC<LiveStatusCardProps> = ({
   // Number of equalizer bars for the green waveform in screenshot
   const bars = [16, 28, 42, 60, 48, 80, 52, 95, 70, 85, 45, 65, 35, 50, 25, 18];
 
-  const visionStatusLabel = !cameraEnabled
-    ? 'Disabled'
-    : visionState?.available
-      ? 'Ready'
-      : 'Offline';
+  const visionStatusLabel = visionState?.available ? 'Ready' : 'Offline';
 
   return (
     <div

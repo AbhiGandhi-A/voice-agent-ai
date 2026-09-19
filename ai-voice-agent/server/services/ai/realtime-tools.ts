@@ -30,7 +30,6 @@ export function isFingerQuery(message: string): boolean {
 }
 
 export function selectRealtimeTool(message: string): 'current_time' | 'web_search' | 'vision' | null {
-  if (VISION_INTENT.test(message) && !SEARCH_INTENT.test(message)) return 'vision';
   if ((VISION_INTENT.test(message) || FINGER_INTENT.test(message)) && !SEARCH_INTENT.test(message)) return 'vision';
   if (CURRENT_TIME_INTENT.test(message) && !SEARCH_INTENT.test(message)) return 'current_time';
   return SEARCH_INTENT.test(message) ? 'web_search' : null;

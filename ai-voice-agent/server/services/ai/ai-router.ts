@@ -206,7 +206,6 @@ async function visionResponse(input: AiRouteInput, dependencies: AiRouterDepende
     return { text, model: 'local-vision-router', latencyMs: Date.now() - startedAt, source: 'vision' };
   }
 
-  // 3. Camera is ON, but no face detected
   // ─── 3. Finger Counting Branch ─────────────────────────────────────────
   if (fingerQuery) {
     if (!visionState.handDetected || (visionState.handCount ?? 0) === 0) {
@@ -259,7 +258,6 @@ async function visionResponse(input: AiRouteInput, dependencies: AiRouterDepende
     return { text, model: 'local-vision-router', latencyMs: Date.now() - startedAt, source: 'vision' };
   }
 
-  // 4. Camera is ON and face is detected
   const expr = visionState.expression || 'neutral';
   const confPct = Math.round((visionState.confidence || 0) * 100);
 

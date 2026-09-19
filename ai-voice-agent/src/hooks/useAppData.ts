@@ -654,7 +654,6 @@ export function useAppData(enabled = true): AppData {
       localStorage.setItem('voice_settings', JSON.stringify(s));
     } catch {}
     if (!s.cameraEnabled) {
-      setVisionState((prev) => ({ ...prev, cameraActive: false, faceDetected: false, expression: 'none', confidence: 0 }));
       setVisionState((prev) => ({
         ...prev,
         cameraActive: false,
@@ -674,7 +673,6 @@ export function useAppData(enabled = true): AppData {
       void apiNotifyCameraState(true).catch(() => undefined);
     }
     const current = await getPersistedSettings();
-    await saveSettings({ ...current, voice: s });
     await saveSettings({ ...current, voice: s }).catch(() => undefined);
   }, []);
 

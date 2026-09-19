@@ -52,8 +52,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   }, [voiceSettings]);
 
   useEffect(() => {
-    if (cameraEnabled && cameraVideoRef.current && cameraStream) {
-      cameraVideoRef.current.srcObject = cameraStream;
+    if (cameraEnabled && cameraVideoRef.current) {
+      cameraVideoRef.current.srcObject = cameraStream || null;
       cameraVideoRef.current.play().catch(() => undefined);
     }
   }, [cameraEnabled, cameraStream]);

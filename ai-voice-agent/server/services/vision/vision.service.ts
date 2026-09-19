@@ -11,6 +11,12 @@ export interface VisionAnalysisResult {
   processingTimeMs: number;
   allExpressions?: Record<string, number>;
   available?: boolean;
+  handDetected?: boolean;
+  handCount?: number;
+  fingerCount?: number;
+  fingers?: Record<string, boolean>;
+  hands?: Array<{ handIndex: number; fingerCount: number; fingers: Record<string, boolean>; confidence: number }>;
+  fingerConfidence?: number;
 }
 
 export interface VisionServiceHealth {
@@ -48,6 +54,12 @@ export class VisionService {
     expression: 'none',
     confidence: 0,
     landmarksDetected: false,
+    handDetected: false,
+    handCount: 0,
+    fingerCount: 0,
+    fingers: { thumb: false, index: false, middle: false, ring: false, pinky: false },
+    hands: [],
+    fingerConfidence: 0,
     timestamp: new Date().toISOString(),
     processingTimeMs: 0,
     cameraActive: false,
@@ -207,7 +219,7 @@ export class VisionService {
           status: 'offline',
           available: false,
           provider: 'local-python',
-          model: 'dima806/facial_emotions_image_detection + yunet',
+          model: 'dima806/facial_emotions_image_detection + yunet + mediapipe-hands',
           device: 'cpu',
         };
       }
@@ -221,7 +233,7 @@ export class VisionService {
         status: 'online',
         available: true,
         provider: 'local-python',
-        model: data.model || 'dima806/facial_emotions_image_detection + yunet',
+        model: data.model || 'dima806/facial_emotions_image_detection + yunet + mediapipe-hands',
         device: data.device || 'cpu',
         uptimeSeconds: data.uptimeSeconds,
         latencyMs,
@@ -232,7 +244,7 @@ export class VisionService {
         status: 'offline',
         available: false,
         provider: 'local-python',
-        model: 'dima806/facial_emotions_image_detection + yunet',
+        model: 'dima806/facial_emotions_image_detection + yunet + mediapipe-hands',
         device: 'cpu',
       };
     } finally {
@@ -244,14 +256,28 @@ export class VisionService {
     this.latestState.cameraActive = cameraActive;
     if (!cameraActive) {
       this.latestState.faceDetected = false;
+      this.latestState.faceCount = 0;
       this.latestState.expression = 'none';
       this.latestState.confidence = 0;
+      this.latestState.handDetected = false;
+      this.latestState.handCount = 0;
+      this.latestState.fingerCount = 0;
+      this.latestState.fingers = { thumb: false, index: false, middle: false, ring: false, pinky: false };
+      this.latestState.hands = [];
+      this.latestState.fingerConfidence = 0;
+
       return {
         faceDetected: false,
         faceCount: 0,
         expression: 'none',
         confidence: 0,
         landmarksDetected: false,
+        handDetected: false,
+        handCount: 0,
+        fingerCount: 0,
+        fingers: { thumb: false, index: false, middle: false, ring: false, pinky: false },
+        hands: [],
+        fingerConfidence: 0,
         timestamp: new Date().toISOString(),
         processingTimeMs: 0,
         available: this.latestState.serviceAvailable,
@@ -266,6 +292,12 @@ export class VisionService {
         expression: this.latestState.expression,
         confidence: this.latestState.confidence,
         landmarksDetected: this.latestState.landmarksDetected,
+        handDetected: this.latestState.handDetected,
+        handCount: this.latestState.handCount,
+        fingerCount: this.latestState.fingerCount,
+        fingers: this.latestState.fingers,
+        hands: this.latestState.hands,
+        fingerConfidence: this.latestState.fingerConfidence,
         timestamp: this.latestState.timestamp,
         processingTimeMs: this.latestState.processingTimeMs,
         allExpressions: this.latestState.allExpressions,
@@ -297,6 +329,9 @@ export class VisionService {
           expression: 'uncertain',
           confidence: 0,
           landmarksDetected: false,
+          handDetected: false,
+          handCount: 0,
+          fingerCount: 0,
           timestamp: new Date().toISOString(),
           processingTimeMs: Date.now() - startedAt,
           available: this.latestState.serviceAvailable,
@@ -315,6 +350,7 @@ export class VisionService {
 
       const duration = Date.now() - startedAt;
       logger.info(`[VISION] Frame analyzed in ${duration}ms: face=${data.faceDetected} (${data.faceCount}) expr=${data.expression} conf=${data.confidence}`);
+      logger.info(`[VISION] Frame analyzed in ${duration}ms: face=${data.faceDetected} (${data.faceCount}) expr=${data.expression} hands=${data.handCount || 0} fingers=${data.fingerCount || 0}`);
 
       return data;
     } catch (error) {
@@ -327,6 +363,9 @@ export class VisionService {
         expression: 'none',
         confidence: 0,
         landmarksDetected: false,
+        handDetected: false,
+        handCount: 0,
+        fingerCount: 0,
         timestamp: new Date().toISOString(),
         processingTimeMs: Date.now() - startedAt,
         available: this.latestState.serviceAvailable,
@@ -341,8 +380,15 @@ export class VisionService {
     this.latestState.cameraActive = active;
     if (!active) {
       this.latestState.faceDetected = false;
+      this.latestState.faceCount = 0;
       this.latestState.expression = 'none';
       this.latestState.confidence = 0;
+      this.latestState.handDetected = false;
+      this.latestState.handCount = 0;
+      this.latestState.fingerCount = 0;
+      this.latestState.fingers = { thumb: false, index: false, middle: false, ring: false, pinky: false };
+      this.latestState.hands = [];
+      this.latestState.fingerConfidence = 0;
     }
   }
 

@@ -23,9 +23,15 @@ export interface WebSearchResult {
 const SEARCH_INTENT = /\b(find|search|look up|lookup|research|google|web search|search the web|retrieve|latest|recent|news|current price|current ceo|best .{0,30}(?:courses|hotels|restaurants|products)|what happened today)\b/i;
 const CURRENT_TIME_INTENT = /\b(what(?:'s| is)?\s+(?:the\s+)?(?:date|day|time)|which date|what day|what time|today(?:'s| is the)? date|tomorrow(?:'s| is the)? date|yesterday(?:'s| was the)? date)\b|(?:आज|તારીખ|દિવસ|સમય).*(?:कौन|क्या|છે|શું|આજે|today|date|day|time)/i;
 const VISION_INTENT = /\b(can you see (?:me|my face)|do you see (?:me|my face)|see my (?:face|expression)|how do i look|what is my (?:facial )?expression|what emotion (?:am i|is my)|am i smiling|am i happy|am i sad|look at me|check my (?:face|expression))\b|(?:देख|દેખ|જોઈ|હાવભાવ|मुस्कुरा|हस|expression|face).*(?:सकते|શકો|છો|हो|है|શું|क्या|चेहरा|ચહેરો)/i;
+const FINGER_INTENT = /\b(how many fingers|count (?:my|the)?\s*fingers|how many fingers (?:am i|can you|are|do you)|can you count (?:my|the)?\s*fingers|fingers (?:am i|can you|holding up|showing)|how many hands|count (?:the\s+)?hands|what hand gesture)\b|(?:उंगलियां|उंगली|आંગળી|હાથ|हाथ|finger|hand|hands).*(?:कितनी|કેટલી|ગણો|गिनो|दिख|દેખ|count|many|holding|showing|visible|show)/i;
+
+export function isFingerQuery(message: string): boolean {
+  return FINGER_INTENT.test(message) || /\b(finger|fingers|hand|hands|thumb|pinky)\b/i.test(message);
+}
 
 export function selectRealtimeTool(message: string): 'current_time' | 'web_search' | 'vision' | null {
   if (VISION_INTENT.test(message) && !SEARCH_INTENT.test(message)) return 'vision';
+  if ((VISION_INTENT.test(message) || FINGER_INTENT.test(message)) && !SEARCH_INTENT.test(message)) return 'vision';
   if (CURRENT_TIME_INTENT.test(message) && !SEARCH_INTENT.test(message)) return 'current_time';
   return SEARCH_INTENT.test(message) ? 'web_search' : null;
 }

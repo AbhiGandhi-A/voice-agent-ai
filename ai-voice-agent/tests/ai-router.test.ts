@@ -136,4 +136,83 @@ describe('AI provider router', () => {
     expect(result.source).toBe('vision');
     expect(result.text).toContain('चेहरा दिखाई नहीं दे रहा है');
   });
+
+  it('routes "How many fingers am I showing?" to vision and returns real finger count', async () => {
+    const groq = { generate: vi.fn() };
+    const search = vi.fn();
+    const ollama = { generate: vi.fn() };
+    const vision = {
+      getLatestState: vi.fn().mockReturnValue({
+        cameraActive: true,
+        handDetected: true,
+        handCount: 1,
+        fingerCount: 3,
+        fingers: { thumb: true, index: true, middle: true, ring: false, pinky: false },
+        serviceAvailable: true,
+      }),
+      checkHealth: vi.fn().mockResolvedValue({ status: 'online', available: true, provider: 'local-python', model: 'fer', device: 'cpu' }),
+    };
+
+    const result = await routeAiRequest(input('How many fingers am I showing?'), { groq, search, ollama, vision });
+
+    expect(result.source).toBe('vision');
+    expect(result.text).toContain('3 visible fingers');
+  });
+
+  it('handles two hands finger counting question', async () => {
+    const groq = { generate: vi.fn() };
+    const search = vi.fn();
+    const ollama = { generate: vi.fn() };
+    const vision = {
+      getLatestState: vi.fn().mockReturnValue({
+        cameraActive: true,
+        handDetected: true,
+        handCount: 2,
+        fingerCount: 8,
+        serviceAvailable: true,
+      }),
+      checkHealth: vi.fn().mockResolvedValue({ status: 'online', available: true, provider: 'local-python', model: 'fer', device: 'cpu' }),
+    };
+
+    const result = await routeAiRequest(input('Can you count my fingers?'), { groq, search, ollama, vision });
+
+    expect(result.source).toBe('vision');
+    expect(result.text).toContain('8 visible fingers across both hands');
+  });
+
+  it('returns camera-off message when asking finger questions with camera disabled', async () => {
+    const groq = { generate: vi.fn() };
+    const search = vi.fn();
+    const ollama = { generate: vi.fn() };
+    const vision = {
+      getLatestState: vi.fn().mockReturnValue({ cameraActive: false, serviceAvailable: true }),
+      checkHealth: vi.fn().mockResolvedValue({ status: 'online', available: true, provider: 'local-python', model: 'fer', device: 'cpu' }),
+    };
+
+    const result = await routeAiRequest(input('How many fingers am I holding up?'), { groq, search, ollama, vision });
+
+    expect(result.source).toBe('vision');
+    expect(result.text).toContain("camera is currently off, so I can't detect your fingers");
+  });
+
+  it('returns no-hand message when camera is active but no hand is visible', async () => {
+    const groq = { generate: vi.fn() };
+    const search = vi.fn();
+    const ollama = { generate: vi.fn() };
+    const vision = {
+      getLatestState: vi.fn().mockReturnValue({
+        cameraActive: true,
+        handDetected: false,
+        handCount: 0,
+        fingerCount: 0,
+        serviceAvailable: true,
+      }),
+      checkHealth: vi.fn().mockResolvedValue({ status: 'online', available: true, provider: 'local-python', model: 'fer', device: 'cpu' }),
+    };
+
+    const result = await routeAiRequest(input('Count my fingers'), { groq, search, ollama, vision });
+
+    expect(result.source).toBe('vision');
+    expect(result.text).toContain("don't detect a visible hand");
+  });
 });

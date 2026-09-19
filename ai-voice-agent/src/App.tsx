@@ -73,8 +73,15 @@ export default function App() {
     let intervalId: NodeJS.Timeout | null = null;
     let streamCancelled = false;
 
-    if (data.voiceSettings.cameraEnabled) {
-      if (navigator.mediaDevices?.getUserMedia) {
+    const isCameraEnabled = Boolean(data.voiceSettings.cameraEnabled);
+    const isFaceAnalysisEnabled = Boolean(data.voiceSettings.faceAnalysisEnabled);
+
+    if (isCameraEnabled) {
+      const isStreamActive =
+        cameraStreamRef.current &&
+        cameraStreamRef.current.getVideoTracks().some((t) => t.readyState === 'live');
+
+      if (!isStreamActive && navigator.mediaDevices?.getUserMedia) {
         navigator.mediaDevices
           .getUserMedia({ video: true, audio: false })
           .then((stream) => {
@@ -90,28 +97,32 @@ export default function App() {
             }
             console.log('[VISION] camera=true');
             void dataRef.current.updateCameraState(true);
-
-            // Start 1 FPS sampling if face analysis is enabled
-            if (data.voiceSettings.faceAnalysisEnabled) {
-              intervalId = setInterval(() => {
-                const vid = cameraVideoRef.current;
-                if (!vid || !dataRef.current.voiceSettings.cameraEnabled || !dataRef.current.voiceSettings.faceAnalysisEnabled) {
-                  return;
-                }
-                const frame = captureVideoFrame(vid, 320, 240, 0.65);
-                if (frame) {
-                  console.log(`[VISION] videoWidth=${vid.videoWidth}`);
-                  console.log(`[VISION] videoHeight=${vid.videoHeight}`);
-                  console.log('[VISION] frameCaptured=true');
-                  void dataRef.current.processVisionFrame(frame);
-                }
-              }, 1000);
-            }
           })
           .catch((err) => {
             console.warn('[CAMERA] getUserMedia failed:', err);
             void dataRef.current.updateCameraState(false);
           });
+      } else if (isStreamActive && cameraVideoRef.current && !cameraVideoRef.current.srcObject) {
+        cameraVideoRef.current.srcObject = cameraStreamRef.current;
+        cameraVideoRef.current.play().catch(() => undefined);
+        void dataRef.current.updateCameraState(true);
+      }
+
+      // Start 1 FPS sampling if face / hand analysis is enabled
+      if (isFaceAnalysisEnabled) {
+        intervalId = setInterval(() => {
+          const vid = cameraVideoRef.current;
+          if (!vid || !dataRef.current.voiceSettings.cameraEnabled || !dataRef.current.voiceSettings.faceAnalysisEnabled) {
+            return;
+          }
+          const frame = captureVideoFrame(vid, 320, 240, 0.65);
+          if (frame) {
+            console.log(`[VISION] videoWidth=${vid.videoWidth}`);
+            console.log(`[VISION] videoHeight=${vid.videoHeight}`);
+            console.log('[VISION] frameCaptured=true');
+            void dataRef.current.processVisionFrame(frame);
+          }
+        }, 1000);
       }
     } else {
       stopMediaStream(cameraStreamRef.current);
@@ -467,6 +478,7 @@ export default function App() {
                   onSaveCallSettings={(s) => void data.onSaveCallSettings(s)}
                   systemConfig={data.systemConfig}
                   onSaveSystemConfig={() => undefined}
+                  cameraStream={cameraStreamRef.current}
                 />
               )}
 

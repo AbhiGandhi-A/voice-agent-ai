@@ -189,7 +189,13 @@ export function useAppData(enabled = true): AppData {
   const [activeLiveCall, setActiveLiveCall] = useState<Call | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [aiSettings, setAiSettings] = useState<AISettings>(DEFAULT_AI_SETTINGS);
-  const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>(DEFAULT_VOICE_SETTINGS);
+  const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>(() => {
+    try {
+      const saved = localStorage.getItem('voice_settings');
+      if (saved) return { ...DEFAULT_VOICE_SETTINGS, ...JSON.parse(saved) };
+    } catch {}
+    return DEFAULT_VOICE_SETTINGS;
+  });
   const [callSettings, setCallSettings] = useState<CallSettings>(DEFAULT_CALL_SETTINGS);
   const [systemConfig, setSystemConfig] = useState<SystemConfigUi>(DEFAULT_SYSTEM_CONFIG);
   const [services, setServices] = useState<ServiceStatus[]>([]);
@@ -203,6 +209,12 @@ export function useAppData(enabled = true): AppData {
     expression: 'none',
     confidence: 0,
     landmarksDetected: false,
+    handDetected: false,
+    handCount: 0,
+    fingerCount: 0,
+    fingers: { thumb: false, index: false, middle: false, ring: false, pinky: false },
+    hands: [],
+    fingerConfidence: 0,
   });
   const liveCallIdRef = useRef<string | null>(null);
   const sessionConvIdRef = useRef<string>(CONV_PLACEHOLDER_ID);
@@ -255,6 +267,9 @@ export function useAppData(enabled = true): AppData {
         const mapped = mapBackendSettings(settingsRes.settings);
         setAiSettings(mapped.ai);
         setVoiceSettings(mapped.voice);
+        try {
+          localStorage.setItem('voice_settings', JSON.stringify(mapped.voice));
+        } catch {}
         setCallSettings(mapped.call);
         setServices(mapHealth(health));
         if (health.vision) {
@@ -594,6 +609,12 @@ export function useAppData(enabled = true): AppData {
         expression: res.expression,
         confidence: res.confidence,
         landmarksDetected: res.landmarksDetected,
+        handDetected: res.handDetected,
+        handCount: res.handCount,
+        fingerCount: res.fingerCount,
+        fingers: res.fingers,
+        hands: res.hands,
+        fingerConfidence: res.fingerConfidence,
         timestamp: res.timestamp,
         processingTimeMs: res.processingTimeMs,
       }));
@@ -607,8 +628,15 @@ export function useAppData(enabled = true): AppData {
       ...prev,
       cameraActive: active,
       faceDetected: active ? prev.faceDetected : false,
+      faceCount: active ? prev.faceCount : 0,
       expression: active ? prev.expression : 'none',
       confidence: active ? prev.confidence : 0,
+      handDetected: active ? prev.handDetected : false,
+      handCount: active ? prev.handCount : 0,
+      fingerCount: active ? prev.fingerCount : 0,
+      fingers: active ? prev.fingers : { thumb: false, index: false, middle: false, ring: false, pinky: false },
+      hands: active ? prev.hands : [],
+      fingerConfidence: active ? prev.fingerConfidence : 0,
     }));
     await apiNotifyCameraState(active).catch(() => undefined);
   }, []);
@@ -622,14 +650,32 @@ export function useAppData(enabled = true): AppData {
 
   const onSaveVoiceSettings = useCallback(async (s: VoiceSettings) => {
     setVoiceSettings(s);
+    try {
+      localStorage.setItem('voice_settings', JSON.stringify(s));
+    } catch {}
     if (!s.cameraEnabled) {
       setVisionState((prev) => ({ ...prev, cameraActive: false, faceDetected: false, expression: 'none', confidence: 0 }));
+      setVisionState((prev) => ({
+        ...prev,
+        cameraActive: false,
+        faceDetected: false,
+        faceCount: 0,
+        expression: 'none',
+        confidence: 0,
+        handDetected: false,
+        handCount: 0,
+        fingerCount: 0,
+        fingers: { thumb: false, index: false, middle: false, ring: false, pinky: false },
+        hands: [],
+        fingerConfidence: 0,
+      }));
       void apiNotifyCameraState(false).catch(() => undefined);
     } else {
       void apiNotifyCameraState(true).catch(() => undefined);
     }
     const current = await getPersistedSettings();
     await saveSettings({ ...current, voice: s });
+    await saveSettings({ ...current, voice: s }).catch(() => undefined);
   }, []);
 
   const onSaveCallSettings = useCallback(async (s: CallSettings) => {

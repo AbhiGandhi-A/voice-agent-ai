@@ -13,6 +13,7 @@ interface SettingsViewProps {
   onSaveCallSettings: (settings: CallSettings) => void;
   systemConfig: SystemConfig;
   onSaveSystemConfig: (config: SystemConfig) => void;
+  cameraStream?: MediaStream | null;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -24,6 +25,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onSaveCallSettings,
   systemConfig,
   onSaveSystemConfig,
+  cameraStream,
 }) => {
   const [activeSection, setActiveSection] = useState<'ai' | 'voice' | 'call' | 'system'>('ai');
   const [ai, setAi] = useState<AISettings>(aiSettings);
@@ -35,7 +37,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [savedNotice, setSavedNotice] = useState(false);
   const [cameraEnabled, setCameraEnabled] = useState(voiceSettings.cameraEnabled);
   const [cameraError, setCameraError] = useState('');
-  const cameraStreamRef = useRef<MediaStream | null>(null);
   const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
@@ -45,58 +46,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       .catch(() => setMemoryError('Could not load memories.'));
   }, [activeSection]);
 
-  useEffect(() => () => {
-    stopMediaStream(cameraStreamRef.current);
-    cameraStreamRef.current = null;
-  }, []);
+  useEffect(() => {
+    setVoice(voiceSettings);
+    setCameraEnabled(voiceSettings.cameraEnabled);
+  }, [voiceSettings]);
 
   useEffect(() => {
-    if (cameraEnabled && cameraVideoRef.current) {
-      cameraVideoRef.current.srcObject = cameraStreamRef.current;
+    if (cameraEnabled && cameraVideoRef.current && cameraStream) {
+      cameraVideoRef.current.srcObject = cameraStream;
+      cameraVideoRef.current.play().catch(() => undefined);
     }
-  }, [cameraEnabled]);
+  }, [cameraEnabled, cameraStream]);
 
-  useEffect(() => {
-    if (voiceSettings.cameraEnabled !== cameraEnabled) {
-      setCameraEnabled(voiceSettings.cameraEnabled);
-    }
-  }, [voiceSettings.cameraEnabled]);
-
-  useEffect(() => {
-    if (cameraEnabled && !cameraStreamRef.current) {
-      void toggleCamera(true);
-    }
-    // The persisted preference should request a fresh local stream when the
-    // settings page is reopened; the stream itself is never persisted.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const toggleCamera = async (enabled: boolean) => {
+  const toggleCamera = (enabled: boolean) => {
     setCameraError('');
-    if (!enabled) {
-      stopMediaStream(cameraStreamRef.current);
-      cameraStreamRef.current = null;
-      if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
-      setCameraEnabled(false);
-      setVoice((current) => ({ ...current, cameraEnabled: false }));
-      return;
-    }
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setCameraError('Camera access is not supported in this browser.');
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-      stopMediaStream(cameraStreamRef.current);
-      cameraStreamRef.current = stream;
-      if (cameraVideoRef.current) cameraVideoRef.current.srcObject = stream;
-      setCameraEnabled(true);
-      setVoice((current) => ({ ...current, cameraEnabled: true }));
-    } catch (error) {
-      setCameraEnabled(false);
-      setVoice((current) => ({ ...current, cameraEnabled: false }));
-      setCameraError(cameraErrorMessage(error));
-    }
+    setCameraEnabled(enabled);
+    const updated = { ...voice, cameraEnabled: enabled };
+    setVoice(updated);
+    onSaveVoiceSettings(updated);
   };
 
   const handleDeleteMemory = async (id: string) => {

@@ -1,7 +1,7 @@
 import { ApiError } from '../../middleware/error';
 import { logger } from '../../utils/logger';
 import { buildLanguageSystemInstruction, normalizeAssistantLanguage } from '../../../src/lib/language';
-import { getCurrentTime, selectRealtimeTool, webSearch, RuntimeContext, WebSearchResult } from './realtime-tools';
+import { getCurrentTime, selectRealtimeTool, webSearch, RuntimeContext, WebSearchResult, isFingerQuery } from './realtime-tools';
 import { groqService } from './groq.service';
 import { ollamaService } from './ollama.service';
 import { visionService } from '../vision/vision.service';
@@ -153,16 +153,28 @@ async function visionResponse(input: AiRouteInput, dependencies: AiRouterDepende
   const visionState = dependencies.vision.getLatestState();
   const health = await dependencies.vision.checkHealth().catch(() => ({ available: false, status: 'offline' as const, provider: 'local-python', model: '', device: 'cpu' }));
   const language = normalizeAssistantLanguage(input.language);
+  const fingerQuery = isFingerQuery(input.message);
 
   // 1. Camera is OFF
   if (!visionState.cameraActive) {
-    const text = language === 'hi'
-      ? 'अभी कैमरा बंद है, इसलिए मैं आपको नहीं देख सकता। विज़न चालू करने के लिए सेटिंग्स में कैमरा ऑन करें।'
-      : language === 'gu'
-        ? 'હમણાં કેમેરો બંધ છે, તેથી હું તમને જોઈ શકતો નથી. વિઝન શરૂ કરવા માટે સેટિંગ્સમાં કેમેરો ચાલુ કરો.'
-        : language === 'hinglish'
-          ? 'Abhi camera band hai, isliye main aapko nahi dekh sakta. Vision enable karne ke liye Settings mein camera on karein.'
-          : 'The camera is currently turned off, so I cannot see you right now. Please enable the camera in Settings to turn on vision.';
+    let text = 'The camera is currently turned off, so I cannot see you right now. Please enable the camera in Settings to turn on vision.';
+    if (fingerQuery) {
+      text = language === 'hi'
+        ? 'अभी कैमरा बंद है, इसलिए मैं आपकी उंगलियों को नहीं देख सकता।'
+        : language === 'gu'
+          ? 'હમણાં કેમેરો બંધ છે, તેથી હું તમારી આંગળીઓ જોઈ શકતો નથી.'
+          : language === 'hinglish'
+            ? 'Abhi camera band hai, isliye main aapki fingers detect nahi kar sakta.'
+            : "The camera is currently off, so I can't detect your fingers.";
+    } else {
+      text = language === 'hi'
+        ? 'अभी कैमरा बंद है, इसलिए मैं आपको नहीं देख सकता। विज़न चालू करने के लिए सेटिंग्स में कैमरा ऑन करें।'
+        : language === 'gu'
+          ? 'હમણાં કેમેરો બંધ છે, તેથી હું તમને જોઈ શકતો નથી. વિઝન શરૂ કરવા માટે સેટિંગ્સમાં કેમેરો ચાલુ કરો.'
+          : language === 'hinglish'
+            ? 'Abhi camera band hai, isliye main aapko nahi dekh sakta. Vision enable karne ke liye Settings mein camera on karein.'
+            : 'The camera is currently turned off, so I cannot see you right now. Please enable the camera in Settings to turn on vision.';
+    }
 
     return { text, model: 'local-vision-router', latencyMs: Date.now() - startedAt, source: 'vision' };
   }
@@ -195,6 +207,46 @@ async function visionResponse(input: AiRouteInput, dependencies: AiRouterDepende
   }
 
   // 3. Camera is ON, but no face detected
+  // ─── 3. Finger Counting Branch ─────────────────────────────────────────
+  if (fingerQuery) {
+    if (!visionState.handDetected || (visionState.handCount ?? 0) === 0) {
+      const text = language === 'hi'
+        ? 'मुझे वर्तमान कैमरा फ्रेम में कोई हाथ दिखाई नहीं दे रहा है।'
+        : language === 'gu'
+          ? 'મને વર્તમાન કેમેરા ફ્રેમમાં કોઈ હાથ દેખાતો નથી.'
+          : language === 'hinglish'
+            ? 'Mujhe current camera frame mein koi hand detect nahi ho raha hai.'
+            : "I don't detect a visible hand in the current camera frame.";
+
+      return { text, model: 'local-python-vision', latencyMs: Date.now() - startedAt, source: 'vision' };
+    }
+
+    const handCount = visionState.handCount || 1;
+    const fingerCount = visionState.fingerCount || 0;
+
+    let text = '';
+    if (handCount > 1) {
+      text = language === 'hi'
+        ? `मैं दोनों हाथों में कुल ${fingerCount} उंगलियां देख पा रहा हूँ।`
+        : language === 'gu'
+          ? `હું બંને હાથમાં કુલ ${fingerCount} આંગળીઓ જોઈ શકું છું.`
+          : language === 'hinglish'
+            ? `Main dono haathon mein total ${fingerCount} fingers detect kar raha hoon.`
+            : `I can detect ${fingerCount} visible fingers across both hands.`;
+    } else {
+      text = language === 'hi'
+        ? `मैं ${fingerCount} उंगली/उंगलियां देख पा रहा हूँ।`
+        : language === 'gu'
+          ? `હું ${fingerCount} આંગળીઓ જોઈ શકું છું.`
+          : language === 'hinglish'
+            ? `Main ${fingerCount} finger${fingerCount === 1 ? '' : 's'} detect kar raha hoon.`
+            : `I can detect ${fingerCount} visible finger${fingerCount === 1 ? '' : 's'}.`;
+    }
+
+    return { text, model: 'local-python-vision', latencyMs: Date.now() - startedAt, source: 'vision' };
+  }
+
+  // ─── 4. Face & Expression Branch ───────────────────────────────────────
   if (!visionState.faceDetected || visionState.faceCount === 0) {
     const text = language === 'hi'
       ? 'कैमरा चालू है, लेकिन मुझे अभी फ्रेम में कोई चेहरा दिखाई नहीं दे रहा है।'

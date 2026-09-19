@@ -91,6 +91,12 @@ export interface VisionAnalysisResponse {
   expression: string;
   confidence: number;
   landmarksDetected: boolean;
+  handDetected?: boolean;
+  handCount?: number;
+  fingerCount?: number;
+  fingers?: number[];
+  hands?: Array<{ label: string; fingerCount: number; fingers: number[]; confidence: number }>;
+  fingerConfidence?: number;
   timestamp: string;
   processingTimeMs: number;
   allExpressions?: Record<string, number>;
@@ -264,7 +270,7 @@ export const fetchTrend = (bucket = 'day') => api.get<Array<{ label: string; cou
 // ─── Settings ──────────────────────────────────────────────────────────
 export interface BackendSettings {
   ai: { model: string; temperature: number; maxTokens: number; systemPrompt: string; historyLimit: number };
-  voice: { whisperModel: string; whisperLanguage: string; ttsEngine: string; ttsVoice: string; speakingSpeed: number; silenceThresholdMs: number; autoDetectVad: boolean; autoWake: boolean; cameraEnabled: boolean };
+  voice: { whisperModel: string; whisperLanguage: string; ttsEngine: string; ttsVoice: string; speakingSpeed: number; silenceThresholdMs: number; autoDetectVad: boolean; autoWake: boolean; cameraEnabled: boolean; faceAnalysisEnabled: boolean };
   call: { autoAnswer: boolean; aiGreeting: string; maxCallDurationMinutes: number; enableRecording: boolean; enableHumanTakeover: boolean; bargeInEnabled: boolean };
 }
 

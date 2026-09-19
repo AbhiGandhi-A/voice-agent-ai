@@ -112,6 +112,12 @@ export interface VisionState {
   expression: string;
   confidence: number;
   landmarksDetected: boolean;
+  handDetected?: boolean;
+  handCount?: number;
+  fingerCount?: number;
+  fingers?: Record<string, boolean>;
+  hands?: Array<{ handIndex: number; fingerCount: number; fingers: Record<string, boolean>; confidence: number }>;
+  fingerConfidence?: number;
   timestamp?: string;
   processingTimeMs?: number;
 }

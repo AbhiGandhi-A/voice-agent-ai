@@ -19,6 +19,7 @@ export interface UserSettings {
     autoDetectVad: boolean;
     autoWake: boolean;
     cameraEnabled: boolean;
+    faceAnalysisEnabled: boolean;
   };
   call: {
     autoAnswer: boolean;
@@ -49,6 +50,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     autoDetectVad: true,
     autoWake: false,
     cameraEnabled: false,
+    faceAnalysisEnabled: true,
   },
   call: {
     autoAnswer: true,

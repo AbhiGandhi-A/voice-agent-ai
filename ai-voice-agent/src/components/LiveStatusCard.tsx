@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, Activity, Cpu, Sparkles, Volume2, Camera, Smile } from 'lucide-react';
+import { Mic, Activity, Cpu, Sparkles, Volume2, Camera, Smile, Hand } from 'lucide-react';
 import { VisionState, VoiceStatus } from '../types';
 
 interface LiveStatusCardProps {
@@ -172,6 +172,21 @@ export const LiveStatusCard: React.FC<LiveStatusCardProps> = ({
                   {visionState.expression}
                   {visionState.confidence > 0 && ` (${Math.round(visionState.confidence * 100)}%)`}
                 </span>
+              </div>
+            )}
+
+            {visionState?.handDetected && (
+              <div className="flex items-center justify-between py-2 text-slate-300">
+                <div className="flex items-center gap-2 text-slate-400">
+                  <Hand className="w-3.5 h-3.5" />
+                  <span>Hand & Fingers</span>
+                </div>
+                <div className="flex items-center gap-1.5 font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />
+                  <span className="text-emerald-400">
+                    {visionState.fingerCount} finger{visionState.fingerCount === 1 ? '' : 's'} ({visionState.handCount || 1} {visionState.handCount === 1 ? 'hand' : 'hands'})
+                  </span>
+                </div>
               </div>
             )}
           </>

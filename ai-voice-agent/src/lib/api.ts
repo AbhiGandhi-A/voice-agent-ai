@@ -17,7 +17,7 @@ export class ApiError extends Error {
  * - Vercel production: set `VITE_API_BASE_URL=https://<public-backend-url>` at build time.
  * Never hardcode `localhost` in a production bundle — Vercel supplies this var.
  */
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined ?? '').replace(/\/+$/, '');
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined ?? '').replace(/\/+$/, '');
 
 let currentToken = '';
 

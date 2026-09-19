@@ -26,7 +26,7 @@ export const HelpDocsView: React.FC = () => {
     'Tool calling visualization (e.g., live order lookup, tracking status)',
     'Configurable system prompt, temperature, Whisper model, and Piper voice',
     'Real-time system diagnostics (Ollama, Whisper, Piper, Asterisk, SQLite)',
-    'Seamless Mock Mode (NEXT_PUBLIC_MOCK_MODE=true) for instant frontend evaluation without local server',
+    'Browser SpeechRecognition with live interim transcription and authenticated Ollama chat',
   ];
 
   return (
@@ -82,17 +82,17 @@ ollama run llama3.2`}
         </pre>
       </div>
 
-      {/* Step 2: Python Backend (FastAPI + Faster-Whisper + Piper) */}
+      {/* Step 2: Node backend */}
       <div className="p-5 rounded-2xl bg-[#0c1222]/80 border border-slate-800/80 backdrop-blur-xl flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-lg bg-indigo-600/20 text-indigo-400 flex items-center justify-center font-bold text-xs">
               2
             </div>
-            <h3 className="text-sm font-bold text-white">Launch Self-Hosted AI Server (Python / FastAPI)</h3>
+            <h3 className="text-sm font-bold text-white">Run the Node / Express Backend</h3>
           </div>
           <button
-            onClick={() => copyToClipboard('pip install fastapi uvicorn websockets faster-whisper piper-tts httpx\npython -m uvicorn server:app --host 0.0.0.0 --port 8000', 'python')}
+            onClick={() => copyToClipboard('npm install\nnpm run dev', 'python')}
             className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white"
           >
             {copiedCmd === 'python' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -100,11 +100,11 @@ ollama run llama3.2`}
           </button>
         </div>
         <pre className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-emerald-300 overflow-x-auto">
-{`# Install Python dependencies
-pip install fastapi uvicorn websockets faster-whisper piper-tts httpx numpy
+{`# Install dependencies
+npm install
 
-# Start the audio streaming WebSocket server on port 8000
-python -m uvicorn server:app --host 0.0.0.0 --port 8000 --reload`}
+# Start the Node / Express backend on port 3000
+npm run dev`}
         </pre>
       </div>
 
@@ -117,7 +117,7 @@ python -m uvicorn server:app --host 0.0.0.0 --port 8000 --reload`}
           <h3 className="text-sm font-bold text-white">Asterisk 20+ SIP Trunk & AudioSocket Bridge</h3>
         </div>
         <p className="text-xs text-slate-400">
-          In <code>/etc/asterisk/extensions.conf</code>, connect incoming calls directly to your FastAPI AudioSocket stream:
+          In <code>/etc/asterisk/extensions.conf</code>, connect incoming calls to the Node media stream endpoint when telephony is configured:
         </p>
         <pre className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-amber-300 overflow-x-auto">
 {`[from-pstn]
@@ -130,7 +130,7 @@ exten => _+91.,1,NoOp(Inbound AI Voice Call)
 
       {/* Step 4: WebSocket Event Protocol */}
       <div className="p-5 rounded-2xl bg-[#0c1222]/80 border border-slate-800/80 backdrop-blur-xl flex flex-col gap-3">
-        <h3 className="text-sm font-bold text-white">WebSocket Audio Protocol (ws://localhost:8000/ws/voice)</h3>
+        <h3 className="text-sm font-bold text-white">Node Telephony Media WebSocket</h3>
         <div className="space-y-2 text-xs font-mono">
           <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-300">
             <span className="text-indigo-400 font-bold">Client → Server: </span>

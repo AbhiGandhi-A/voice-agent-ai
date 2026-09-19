@@ -102,6 +102,8 @@ export class VoiceSessionManager {
   constructor(config: VoiceSessionConfig, onEvent: VoiceEventCallback) {
     this.config = config;
     this.onEvent = onEvent;
+    console.log('[VOICE] transport: browser-stt');
+    this.log('initialized');
   }
 
   public setHistoryProvider(provider: () => Message[]) {

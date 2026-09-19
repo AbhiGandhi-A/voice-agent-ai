@@ -40,7 +40,7 @@ export const env = {
   sttLanguage: required('STT_LANGUAGE', { defaultValue: 'en-US' }),
   sttApiKey: required('STT_API_KEY', { optional: true }),
   sttModel: required('STT_MODEL', { defaultValue: 'small' }),
-  whisperServerUrl: required('WHISPER_SERVER_URL', { defaultValue: 'http://127.0.0.1:8000' }),
+  whisperServerUrl: required('WHISPER_SERVER_URL', { optional: true }),
 
   ttsProvider: required('TTS_PROVIDER', { defaultValue: 'browser' }),
   ttsApiKey: required('TTS_API_KEY', { optional: true }),

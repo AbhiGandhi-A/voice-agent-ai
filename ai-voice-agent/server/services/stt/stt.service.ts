@@ -25,6 +25,9 @@ export const sttService = {
     return (async () => {
       switch (env.sttProvider) {
         case 'whisper': {
+          if (!env.whisperServerUrl) {
+            return { provider: 'whisper', status: 'not_configured', details: 'WHISPER_SERVER_URL is not configured.' };
+          }
           const ok = await ping(env.whisperServerUrl);
           return ok
             ? { provider: 'whisper', status: 'connected', details: `faster-whisper (${env.sttModel})` }
@@ -50,6 +53,7 @@ export const sttService = {
    */
   async transcribe(audioWav: Buffer, mimeType = 'audio/wav'): Promise<TranscriptResult> {
     if (env.sttProvider === 'whisper') {
+      if (!env.whisperServerUrl) throw new ApiError(503, 'stt_unavailable', 'Whisper server URL is not configured.');
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 30_000);
       try {

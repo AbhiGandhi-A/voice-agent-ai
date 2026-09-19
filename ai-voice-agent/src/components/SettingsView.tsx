@@ -325,29 +325,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <div className="border-b border-slate-800 pb-3">
               <h3 className="text-sm font-bold text-white">Server Endpoints & Environment Config</h3>
               <p className="text-[11.5px] text-slate-400 mt-0.5">
-                Local FastAPI bridge, WebSocket URL, and mock simulation mode toggle.
+                Runtime API configuration and browser voice transport status.
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-slate-300 font-semibold">Local AI Server URL</label>
+                <label className="text-slate-300 font-semibold">Backend API Base URL</label>
                 <input
                   type="text"
                   value={sys.aiServerUrl}
-                  onChange={(e) => setSys({ ...sys, aiServerUrl: e.target.value })}
-                  placeholder="http://localhost:8000"
+                  readOnly
+                  placeholder="/api"
                   className="px-3.5 py-2.5 rounded-xl bg-[#080d19] border border-slate-800 text-slate-100 font-mono text-xs focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-slate-300 font-semibold">WebSocket Audio Stream URL</label>
+                <label className="text-slate-300 font-semibold">Browser Voice Transport</label>
                 <input
                   type="text"
                   value={sys.wsUrl}
-                  onChange={(e) => setSys({ ...sys, wsUrl: e.target.value })}
-                  placeholder="ws://localhost:8000/ws/voice"
+                  readOnly
+                  placeholder="Browser SpeechRecognition (no WebSocket)"
                   className="px-3.5 py-2.5 rounded-xl bg-[#080d19] border border-slate-800 text-slate-100 font-mono text-xs focus:outline-none focus:border-indigo-500"
                 />
               </div>
@@ -355,19 +355,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             <div className="flex items-center justify-between p-4 rounded-xl bg-[#080d19] border border-slate-800">
               <div>
-                <h4 className="font-semibold text-white">NEXT_PUBLIC_MOCK_MODE</h4>
+                <h4 className="font-semibold text-white">Mock Mode</h4>
                 <p className="text-[11px] text-slate-400">
-                  When enabled, all voice state transitions, speech synthesis, and telephony simulations work without requiring local Python servers running.
+                  Disabled. Voice uses browser SpeechRecognition, the authenticated Node API, Ollama, and browser speechSynthesis.
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setSys({ ...sys, mockMode: !sys.mockMode })}
+                onClick={() => setSys({ ...sys, mockMode: false })}
+                disabled
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
                   sys.mockMode ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'
                 }`}
               >
-                {sys.mockMode ? 'Mock Mode Enabled' : 'Live Server Mode'}
+                Live Server Mode
               </button>
             </div>
           </div>

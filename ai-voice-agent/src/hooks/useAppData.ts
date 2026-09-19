@@ -41,6 +41,7 @@ import {
   mapConversationRow,
   mapMessage,
 } from '../lib/mappers';
+import { API_BASE_URL } from '../lib/api';
 import { dateLabel, timeLabelSeconds } from '../lib/format';
 
 export interface SystemConfigUi {
@@ -52,7 +53,7 @@ export interface SystemConfigUi {
 }
 
 const DEFAULT_SYSTEM_CONFIG: SystemConfigUi = {
-  aiServerUrl: '/api',
+  aiServerUrl: API_BASE_URL || '/api',
   wsUrl: '',
   apiKey: '',
   allowedOrigins: '*',

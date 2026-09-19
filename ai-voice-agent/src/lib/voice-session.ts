@@ -22,8 +22,8 @@ export type VoiceEventCallback = (event: {
   type:
     | 'status'
     | 'user_transcript'
+    | 'transcript_final'
     | 'ai_text'
-    | 'ai_audio'
     | 'tool_call'
     | 'error';
   status?: VoiceStatus;
@@ -33,26 +33,40 @@ export type VoiceEventCallback = (event: {
 }) => void;
 
 /* Web Speech Recognition types for browser compatibility */
-interface SpeechRecognitionResultItem {
+interface SpeechRecognitionAlternative {
   transcript: string;
   confidence: number;
 }
-interface SpeechRecognitionResultList {
+interface SpeechRecognitionResultLike {
+  isFinal: boolean;
   length: number;
-  item(index: number): SpeechRecognitionResultItem[];
-  [index: number]: SpeechRecognitionResultItem[];
+  [index: number]: SpeechRecognitionAlternative;
+}
+interface SpeechRecognitionResultListLike {
+  length: number;
+  [index: number]: SpeechRecognitionResultLike;
 }
 interface SpeechRecognitionEventLike {
-  results: SpeechRecognitionResultList;
+  resultIndex?: number;
+  results: SpeechRecognitionResultListLike;
+}
+interface SpeechRecognitionErrorLike {
+  error: string;
+  message?: string;
 }
 interface SpeechRecognitionLike {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
+  maxAlternatives?: number;
   onstart: (() => void) | null;
   onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: ((event: { error: string }) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorLike) => void) | null;
   onend: (() => void) | null;
+  onaudiostart: (() => void) | null;
+  onaudioend: (() => void) | null;
+  onspeechstart: (() => void) | null;
+  onspeechend: (() => void) | null;
   start: () => void;
   stop: () => void;
   abort: () => void;
@@ -73,10 +87,14 @@ export class VoiceSessionManager {
   private mediaStream: MediaStream | null = null;
   private animFrameId: number | null = null;
   private recognition: SpeechRecognitionLike | null = null;
+  private recognitionActive = false;
+  private starting = false;
+  private stopRequested = false;
+  private restartTimer: NodeJS.Timeout | null = null;
+  private restartAttempts = 0;
   private isListening = false;
   private isMuted = false;
   private currentStatus: VoiceStatus = 'idle';
-  private silenceTimer: NodeJS.Timeout | null = null;
   private ws: WebSocket | null = null;
   private onAmplitudeCallback?: (amp: number) => void;
   private historyProvider?: () => Message[];
@@ -99,6 +117,20 @@ export class VoiceSessionManager {
   }
 
   public async startSession(): Promise<boolean> {
+    // Guard against concurrent/duplicate starts (e.g. double-click on the mic).
+    // Starting a second Web Speech recognition aborts the active Chrome session
+    // with a silent 'aborted' error — the exact "stuck Listening, no transcript".
+    if (this.starting || this.isListening) {
+      this.log('startSession ignored (already ' + (this.starting ? 'starting' : 'listening') + ')');
+      return true;
+    }
+    this.starting = true;
+    this.stopRequested = false;
+    if (this.restartTimer) {
+      clearTimeout(this.restartTimer);
+      this.restartTimer = null;
+    }
+
     try {
       this.setStatus('connecting');
 
@@ -116,6 +148,9 @@ export class VoiceSessionManager {
           // Setup Web Audio API Analyser
           const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
           if (AudioContextClass) {
+            if (this.audioContext && this.audioContext.state !== 'closed') {
+              await this.audioContext.close().catch(() => undefined);
+            }
             this.audioContext = new AudioContextClass();
             const source = this.audioContext.createMediaStreamSource(this.mediaStream);
             this.analyser = this.audioContext.createAnalyser();
@@ -126,14 +161,16 @@ export class VoiceSessionManager {
           }
         } catch (micErr) {
           console.warn('Microphone permission issue or no mic device:', micErr);
-          // Still proceed in mock mode gracefully with visual indicator
         }
       }
 
-      // Initialize Web Speech Recognition if available in browser
-      this.setupSpeechRecognition();
-
       this.isListening = true;
+      // Initialize Web Speech Recognition if available in browser
+      if (!this.startRecognitionInstance()) {
+        this.isListening = false;
+        this.setStatus('error');
+        return false;
+      }
       this.setStatus('listening');
       return true;
     } catch (err: unknown) {
@@ -141,162 +178,185 @@ export class VoiceSessionManager {
       this.setStatus('error');
       this.onEvent({ type: 'error', text: errorMsg });
       return false;
+    } finally {
+      this.starting = false;
     }
   }
 
-  private connectRealWebSocket(serverWsUrl: string) {
-    let url: URL;
+  private log(...args: unknown[]) {
+    console.log('[STT]', ...args);
+  }
+
+  private recognitionLanguage(): string {
+    const lang = this.config.whisperLanguage;
+    if (lang === 'Hindi') return 'hi-IN';
+    if (lang === 'Gujarati') return 'gu-IN';
+    return 'en-US';
+  }
+
+  /**
+   * Creates a fresh SpeechRecognition instance, wires every lifecycle handler,
+   * and starts it. Never starts if one is already active.
+   */
+  private startRecognitionInstance(): boolean {
+    if (this.recognitionActive) {
+      this.log('start ignored (recognition already active)');
+      return true;
+    }
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRec) {
+      this.log('SpeechRecognition API not available in this browser');
+      this.onEvent({
+        type: 'error',
+        text: 'Speech recognition is not supported in this browser. Use Google Chrome (desktop).',
+      });
+      return false;
+    }
+
+    let rec: SpeechRecognitionLike;
     try {
-      url = new URL(serverWsUrl);
-      if (url.protocol !== 'ws:' && url.protocol !== 'wss:') return;
-    } catch {
+      rec = new SpeechRec();
+    } catch (err) {
+      this.log('could not construct SpeechRecognition:', err);
+      return false;
+    }
+
+    // continuous=false + restart-on-end is the most reliable Chrome pattern:
+    // each utterance ends cleanly with an isFinal result, then onend restarts
+    // so the agent keeps listening.
+    rec.continuous = false;
+    rec.interimResults = true;
+    rec.lang = this.recognitionLanguage();
+    rec.maxAlternatives = 1;
+
+    rec.onstart = () => {
+      this.log('onstart');
+      this.recognitionActive = true;
+      this.restartAttempts = 0;
+    };
+
+    rec.onaudiostart = () => this.log('onaudiostart');
+    rec.onaudioend = () => this.log('onaudioend');
+    rec.onspeechstart = () => this.log('speech started');
+    rec.onspeechend = () => this.log('speech ended');
+
+    rec.onresult = (event) => {
+      this.log('onresult', { results: event.results.length });
+      if (this.isMuted) return;
+
+      // Barge-in: if the user speaks while the AI is speaking, stop the AI now.
+      if (this.currentStatus === 'speaking') {
+        this.interruptAI();
+      }
+
+      let interim = '';
+      let final = '';
+      const startIdx = event.resultIndex ?? 0;
+      for (let i = startIdx; i < event.results.length; ++i) {
+        const res = event.results[i];
+        if (!res || res.length === 0) continue;
+        const alt = res[0];
+        const text = (alt.transcript ?? '').trim();
+        if (!text) continue;
+        if (res.isFinal) {
+          final += (final ? ' ' : '') + text;
+        } else {
+          interim += (interim ? ' ' : '') + text;
+        }
+      }
+
+      // Live interim bubble (only when we are actually listening for input).
+      if (interim && this.currentStatus !== 'thinking' && this.currentStatus !== 'speaking') {
+        this.onEvent({ type: 'user_transcript', text: interim });
+      }
+
+      if (final) {
+        this.log('final transcript:', JSON.stringify(final));
+        this.setStatus('thinking');
+        // Clear the live bubble and hand the REAL final transcript to the app,
+        // which routes it through the existing authenticated message flow.
+        this.onEvent({ type: 'user_transcript', text: final });
+        this.onEvent({ type: 'transcript_final', text: final });
+      }
+    };
+
+    rec.onerror = (event) => {
+      const err = (event?.error || 'unknown').toLowerCase();
+      this.log('error:', err);
+
+      if (err === 'not-allowed' || err === 'service-not-allowed') {
+        this.isListening = false;
+        this.setStatus('error');
+        this.onEvent({ type: 'error', text: 'Microphone access was denied. Allow microphone access in the browser and try again.' });
+      } else if (err === 'network') {
+        this.isListening = false;
+        this.setStatus('error');
+        this.onEvent({ type: 'error', text: 'The speech recognition service could not reach the network. Check your connection and try again.' });
+      } else if (err === 'audio-capture') {
+        this.isListening = false;
+        this.setStatus('error');
+        this.onEvent({ type: 'error', text: 'No audio could be captured from the microphone.' });
+      } else if (err === 'no-speech') {
+        // Transient: no speech detected this round — keep listening.
+        this.log('no-speech (keeping the session listening)');
+      } else if (err === 'aborted') {
+        // Expected whenever we call stop()/abort() ourselves; otherwise the
+        // recognizer was superseded — restart if the session should still run.
+        this.log('aborted');
+        if (this.isListening && !this.stopRequested) this.scheduleRestart(250);
+      } else {
+        this.log('unhandled error (non-fatal):', err);
+        if (this.isListening && !this.stopRequested) this.scheduleRestart(250);
+      }
+    };
+
+    rec.onend = () => {
+      this.log('onend');
+      this.recognitionActive = false;
+      if (this.recognition === rec) this.recognition = null;
+      // Auto-restart so the agent keeps listening after each utterance/round.
+      if (this.isListening && !this.stopRequested) {
+        this.scheduleRestart(200);
+      }
+    };
+
+    this.recognition = rec;
+    try {
+      rec.start();
+      this.log('recognition.start()');
+    } catch (err) {
+      this.log('recognition.start() threw:', err);
+      this.recognitionActive = false;
+      this.recognition = null;
+      if (this.isListening && !this.stopRequested) this.scheduleRestart(250);
+      return false;
+    }
+    return true;
+  }
+
+  private scheduleRestart(delay: number): void {
+    if (!this.isListening || this.stopRequested) return;
+    if (this.restartAttempts >= 3) {
+      this.log('restart limit reached');
+      this.isListening = false;
+      this.setStatus('error');
+      this.onEvent({ type: 'error', text: 'Speech recognition stopped unexpectedly. Start listening again to retry.' });
       return;
     }
-
-    try {
-      this.ws = new WebSocket(url.toString());
-      let opened = false;
-      this.ws.onopen = () => {
-        opened = true;
-        this.ws?.send(JSON.stringify({ type: 'session_started', config: this.config }));
-      };
-      this.ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'ai_text') {
-            this.speakText(data.text);
-          }
-        } catch {
-          // ignore non-json
-        }
-      };
-      this.ws.onerror = () => {
-        if (opened) {
-          this.onEvent({
-            type: 'error',
-            text: 'AI Server disconnected. Check the configured Render WebSocket endpoint.',
-          });
-        }
-      };
-      this.ws.onclose = () => {
-        this.ws = null;
-      };
-    } catch {
-      // WS error
-    }
+    this.restartAttempts += 1;
+    if (this.restartTimer) clearTimeout(this.restartTimer);
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = null;
+      if (!this.isListening || this.stopRequested || this.recognitionActive) return;
+      this.startRecognitionInstance();
+    }, delay);
   }
 
-  private setupSpeechRecognition() {
-    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRec) {
-      try {
-        this.recognition = new SpeechRec();
-        this.recognition.continuous = true;
-        this.recognition.interimResults = true;
-        this.recognition.lang =
-          this.config.whisperLanguage === 'Hindi'
-            ? 'hi-IN'
-            : this.config.whisperLanguage === 'Gujarati'
-            ? 'gu-IN'
-            : 'en-US';
-
-        this.recognition.onresult = (event: SpeechRecognitionEventLike) => {
-          if (this.isMuted) return;
-
-          // Barge-in: If user speaks while AI is speaking, interrupt immediately!
-          if (this.currentStatus === 'speaking') {
-            this.interruptAI();
-          }
-
-          let interimTranscript = '';
-          let finalTranscript = '';
-
-          for (let i = 0; i < event.results.length; ++i) {
-            const res = event.results[i];
-            if (res && res[0]) {
-              if (res[0].transcript) {
-                finalTranscript += res[0].transcript;
-              }
-            }
-          }
-
-          const activeText = finalTranscript || interimTranscript;
-          if (activeText.trim()) {
-            this.onEvent({
-              type: 'user_transcript',
-              text: activeText.trim(),
-            });
-
-            // Reset silence VAD debounce
-            if (this.silenceTimer) clearTimeout(this.silenceTimer);
-            this.silenceTimer = setTimeout(() => {
-              const history = this.historyProvider ? this.historyProvider() : [];
-              this.handleSpeechCompleted(activeText.trim(), history);
-            }, this.config.silenceThresholdMs || 900);
-          }
-        };
-
-        this.recognition.onerror = () => {
-          // ignore transient mic aborts
-        };
-
-        try {
-          this.recognition.start();
-        } catch {
-          // already started
-        }
-      } catch (e) {
-        console.warn('SpeechRecognition initialization warning:', e);
-      }
-    }
-  }
-
-  public async handleSpeechCompleted(userText: string, history: Message[] = []) {
-    if (!userText.trim()) return;
-
-    this.setStatus('thinking');
-
-    try {
-      let token: string | null = null;
-      if (this.config.getAuthToken) {
-        token = await this.config.getAuthToken();
-      }
-
-      const response = await fetch(this.config.chatEndpoint ?? '/api/ai/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          message: userText,
-          conversationId: this.config.getConversationId?.() ?? undefined,
-        }),
-      });
-
-      if (!response.ok) {
-        const body = await response.json().catch(() => null);
-        const message = body && typeof body === 'object' && 'error' in body ? String((body as { error: unknown }).error) : `Server returned status ${response.status}`;
-        const code = body && typeof body === 'object' && 'code' in body ? String((body as { code: unknown }).code) : '';
-        if (code === 'ollama_unavailable') {
-          throw new Error('The AI model service (Ollama) is not reachable.');
-        }
-        throw new Error(message);
-      }
-
-      const data = await response.json();
-      const aiReply = data.reply || "I didn't receive a response. Please try again.";
-      this.speakText(aiReply);
-    } catch (err: unknown) {
-      console.warn('Real AI chat endpoint error, falling back gracefully:', err);
-      const fallbackReply = `I heard you say: "${userText}". I am listening, but connecting to the AI model service encountered a network issue. Please ensure the Ollama server is active.`;
-      this.speakText(fallbackReply);
-    }
-  }
-
-  public speakText(text: string) {
+  public speakText(text: string, notifyConversation = true) {
     this.setStatus('speaking');
-    this.onEvent({ type: 'ai_text', text });
+    if (notifyConversation) {
+      this.onEvent({ type: 'ai_text', text });
+    }
 
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel(); // Stop prior audio
@@ -346,6 +406,12 @@ export class VoiceSessionManager {
     }
   }
 
+  public resumeListening() {
+    if (this.isListening && !this.stopRequested) {
+      this.setStatus('listening');
+    }
+  }
+
   public toggleMute(): boolean {
     this.isMuted = !this.isMuted;
     if (this.mediaStream) {
@@ -358,17 +424,26 @@ export class VoiceSessionManager {
 
   public stopSession() {
     this.isListening = false;
+    this.stopRequested = true;
     this.interruptAI();
 
-    if (this.silenceTimer) clearTimeout(this.silenceTimer);
+    if (this.restartTimer) {
+      clearTimeout(this.restartTimer);
+      this.restartTimer = null;
+    }
     if (this.animFrameId) cancelAnimationFrame(this.animFrameId);
 
     if (this.recognition) {
+      this.recognitionActive = false;
       try {
         this.recognition.abort();
       } catch {
         // ignore
       }
+      this.recognition.onstart = null;
+      this.recognition.onresult = null;
+      this.recognition.onerror = null;
+      this.recognition.onend = null;
       this.recognition = null;
     }
 
@@ -381,6 +456,7 @@ export class VoiceSessionManager {
       this.audioContext.close().catch(() => {});
       this.audioContext = null;
     }
+    this.analyser = null;
 
     if (this.ws) {
       this.ws.close();

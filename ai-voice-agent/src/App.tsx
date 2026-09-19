@@ -85,6 +85,15 @@ export default function App() {
           setVoiceStatus(event.status);
         } else if (event.type === 'user_transcript' && event.text) {
           setLiveInterimText(event.text);
+        } else if (event.type === 'transcript_final' && event.text) {
+          setLiveInterimText('');
+          void dataRef.current.handleSendMessage(event.text).then((reply) => {
+            if (reply) {
+              voiceManagerRef.current?.speakText(reply, false);
+            } else {
+              voiceManagerRef.current?.resumeListening();
+            }
+          });
         } else if (event.type === 'ai_text' && event.text) {
           setLiveInterimText('');
           void dataRef.current.appendAiReply(event.text);

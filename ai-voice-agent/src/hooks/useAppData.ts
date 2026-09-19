@@ -129,7 +129,7 @@ export interface AppData {
   refreshConversations: () => Promise<void>;
 
   // voice / web chat
-  handleSendMessage: (text: string) => Promise<void>;
+  handleSendMessage: (text: string) => Promise<string | undefined>;
   appendAiReply: (text: string) => Promise<void>;
   getConversationIdForChat: () => string | null;
 
@@ -322,7 +322,7 @@ export function useAppData(enabled = true): AppData {
   const handleSendMessage = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
-      if (!trimmed) return;
+      if (!trimmed) return undefined;
 
       appendToSession(newMsg('user', trimmed));
 
@@ -337,12 +337,14 @@ export function useAppData(enabled = true): AppData {
         }
         appendToSession(newMsg('assistant', res.reply));
         void refreshConversations();
+        return res.reply;
       } catch (err) {
         const msg =
           err instanceof ApiError && (err.code === 'ollama_unavailable' || err.status === 502 || err.status === 503)
             ? 'The AI service is not reachable right now. Start Ollama and try again.'
             : 'Could not reach the AI service. Check your connection and try again.';
         appendToSession(newMsg('system', msg));
+        return undefined;
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps

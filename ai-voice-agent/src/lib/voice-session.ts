@@ -167,13 +167,13 @@ export class VoiceSessionManager {
       }
 
       this.isListening = true;
+      this.setStatus('listening');
       // Initialize Web Speech Recognition if available in browser
       if (!this.startRecognitionInstance()) {
         this.isListening = false;
         this.setStatus('error');
         return false;
       }
-      this.setStatus('listening');
       return true;
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to initialize voice session';
@@ -251,16 +251,26 @@ export class VoiceSessionManager {
       let interim = '';
       let final = '';
       const startIdx = event.resultIndex ?? 0;
-      for (let i = startIdx; i < event.results.length; ++i) {
+      // Chrome keeps finalized results in the list and replaces the current
+      // non-final result. Read all non-final entries so the live preview does
+      // not depend on the browser's resultIndex implementation.
+      for (let i = 0; i < event.results.length; ++i) {
         const res = event.results[i];
         if (!res || res.length === 0) continue;
         const alt = res[0];
         const text = (alt.transcript ?? '').trim();
         if (!text) continue;
+        if (!res.isFinal) {
+          interim += (interim ? ' ' : '') + text;
+        }
+      }
+      for (let i = startIdx; i < event.results.length; ++i) {
+        const res = event.results[i];
+        if (!res || res.length === 0 || !res.isFinal) continue;
+        const text = (res[0].transcript ?? '').trim();
+        if (!text) continue;
         if (res.isFinal) {
           final += (final ? ' ' : '') + text;
-        } else {
-          interim += (interim ? ' ' : '') + text;
         }
       }
 

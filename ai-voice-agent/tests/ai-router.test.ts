@@ -95,7 +95,7 @@ describe('AI provider router', () => {
     const search = vi.fn();
     const ollama = { generate: vi.fn() };
     const vision = {
-      getLatestState: vi.fn().mockReturnValue({ cameraActive: true, faceDetected: true, faceCount: 1, expression: 'happy', confidence: 0.91, serviceAvailable: true }),
+      getLatestState: vi.fn().mockReturnValue({ cameraActive: true, faceDetected: true, faceCount: 1, expression: 'happy', confidence: 0.91, serviceAvailable: true, lastUpdated: Date.now() }),
       checkHealth: vi.fn().mockResolvedValue({ status: 'online', available: true, provider: 'local-python', model: 'fer', device: 'cpu' }),
     };
 
@@ -111,7 +111,7 @@ describe('AI provider router', () => {
     const search = vi.fn();
     const ollama = { generate: vi.fn() };
     const vision = {
-      getLatestState: vi.fn().mockReturnValue({ cameraActive: true, faceDetected: true, faceCount: 1, expression: 'happy', confidence: 0.88, serviceAvailable: true }),
+      getLatestState: vi.fn().mockReturnValue({ cameraActive: true, faceDetected: true, faceCount: 1, expression: 'happy', confidence: 0.88, serviceAvailable: true, lastUpdated: Date.now() }),
       checkHealth: vi.fn().mockResolvedValue({ status: 'online', available: true, provider: 'local-python', model: 'fer', device: 'cpu' }),
     };
 
@@ -127,7 +127,7 @@ describe('AI provider router', () => {
     const search = vi.fn();
     const ollama = { generate: vi.fn() };
     const vision = {
-      getLatestState: vi.fn().mockReturnValue({ cameraActive: true, faceDetected: false, faceCount: 0, expression: 'none', confidence: 0, serviceAvailable: true }),
+      getLatestState: vi.fn().mockReturnValue({ cameraActive: true, faceDetected: false, faceCount: 0, expression: 'none', confidence: 0, serviceAvailable: true, lastUpdated: Date.now() }),
       checkHealth: vi.fn().mockResolvedValue({ status: 'online', available: true, provider: 'local-python', model: 'fer', device: 'cpu' }),
     };
 
@@ -135,6 +135,44 @@ describe('AI provider router', () => {
 
     expect(result.source).toBe('vision');
     expect(result.text).toContain('चेहरा दिखाई नहीं दे रहा है');
+  });
+
+  it('returns no-face message in English when user leaves camera view or is not in frame', async () => {
+    const groq = { generate: vi.fn() };
+    const search = vi.fn();
+    const ollama = { generate: vi.fn() };
+    const vision = {
+      getLatestState: vi.fn().mockReturnValue({ cameraActive: true, faceDetected: false, faceCount: 0, expression: 'none', confidence: 0, serviceAvailable: true, lastUpdated: Date.now() }),
+      checkHealth: vi.fn().mockResolvedValue({ status: 'online', available: true, provider: 'local-python', model: 'fer', device: 'cpu' }),
+    };
+
+    const result = await routeAiRequest(input('Can you see me?'), { groq, search, ollama, vision });
+
+    expect(result.source).toBe('vision');
+    expect(result.text).toContain('do not detect any face in the frame');
+  });
+
+  it('returns stale message when frame data is older than 3.5 seconds', async () => {
+    const groq = { generate: vi.fn() };
+    const search = vi.fn();
+    const ollama = { generate: vi.fn() };
+    const vision = {
+      getLatestState: vi.fn().mockReturnValue({
+        cameraActive: true,
+        faceDetected: true,
+        faceCount: 1,
+        expression: 'happy',
+        confidence: 0.9,
+        serviceAvailable: true,
+        lastUpdated: Date.now() - 5000,
+      }),
+      checkHealth: vi.fn().mockResolvedValue({ status: 'online', available: true, provider: 'local-python', model: 'fer', device: 'cpu' }),
+    };
+
+    const result = await routeAiRequest(input('Can you see me?'), { groq, search, ollama, vision });
+
+    expect(result.source).toBe('vision');
+    expect(result.text).toContain('unavailable or stale');
   });
 
   it('routes "How many fingers am I showing?" to vision and returns real finger count', async () => {
@@ -149,6 +187,7 @@ describe('AI provider router', () => {
         fingerCount: 3,
         fingers: { thumb: true, index: true, middle: true, ring: false, pinky: false },
         serviceAvailable: true,
+        lastUpdated: Date.now(),
       }),
       checkHealth: vi.fn().mockResolvedValue({ status: 'online', available: true, provider: 'local-python', model: 'fer', device: 'cpu' }),
     };
@@ -170,6 +209,7 @@ describe('AI provider router', () => {
         handCount: 2,
         fingerCount: 8,
         serviceAvailable: true,
+        lastUpdated: Date.now(),
       }),
       checkHealth: vi.fn().mockResolvedValue({ status: 'online', available: true, provider: 'local-python', model: 'fer', device: 'cpu' }),
     };
@@ -185,7 +225,7 @@ describe('AI provider router', () => {
     const search = vi.fn();
     const ollama = { generate: vi.fn() };
     const vision = {
-      getLatestState: vi.fn().mockReturnValue({ cameraActive: false, serviceAvailable: true }),
+      getLatestState: vi.fn().mockReturnValue({ cameraActive: false, serviceAvailable: true, lastUpdated: 0 }),
       checkHealth: vi.fn().mockResolvedValue({ status: 'online', available: true, provider: 'local-python', model: 'fer', device: 'cpu' }),
     };
 
@@ -206,6 +246,7 @@ describe('AI provider router', () => {
         handCount: 0,
         fingerCount: 0,
         serviceAvailable: true,
+        lastUpdated: Date.now(),
       }),
       checkHealth: vi.fn().mockResolvedValue({ status: 'online', available: true, provider: 'local-python', model: 'fer', device: 'cpu' }),
     };
@@ -213,6 +254,6 @@ describe('AI provider router', () => {
     const result = await routeAiRequest(input('Count my fingers'), { groq, search, ollama, vision });
 
     expect(result.source).toBe('vision');
-    expect(result.text).toContain("don't detect a visible hand");
+    expect(result.text).toContain('do not detect any visible hand or fingers');
   });
 });

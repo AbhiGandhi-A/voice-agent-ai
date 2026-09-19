@@ -383,12 +383,14 @@ export class VisionService {
       this.latestState.faceCount = 0;
       this.latestState.expression = 'none';
       this.latestState.confidence = 0;
+      this.latestState.landmarksDetected = false;
       this.latestState.handDetected = false;
       this.latestState.handCount = 0;
       this.latestState.fingerCount = 0;
       this.latestState.fingers = { thumb: false, index: false, middle: false, ring: false, pinky: false };
       this.latestState.hands = [];
       this.latestState.fingerConfidence = 0;
+      this.latestState.lastUpdated = 0;
     }
   }
 

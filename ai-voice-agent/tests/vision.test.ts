@@ -124,5 +124,78 @@ describe('VisionService', () => {
     expect(result.faceDetected).toBe(false);
     expect(result.expression).toBe('none');
   });
+
+  it('updates state when person leaves camera frame', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        faceDetected: true,
+        faceCount: 1,
+        expression: 'happy',
+        confidence: 0.9,
+        landmarksDetected: true,
+        handDetected: false,
+        handCount: 0,
+        fingerCount: 0,
+        timestamp: '2026-09-19T10:00:00Z',
+        processingTimeMs: 30,
+      }),
+    } as Response);
+
+    await service.analyzeFrame('data:image/jpeg;base64,frame_face', true);
+    expect(service.getLatestState().faceDetected).toBe(true);
+
+    // Person leaves frame
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        faceDetected: false,
+        faceCount: 0,
+        expression: 'none',
+        confidence: 0,
+        landmarksDetected: false,
+        handDetected: false,
+        handCount: 0,
+        fingerCount: 0,
+        timestamp: '2026-09-19T10:00:01Z',
+        processingTimeMs: 25,
+      }),
+    } as Response);
+
+    await service.analyzeFrame('data:image/jpeg;base64,frame_empty', true);
+    const updated = service.getLatestState();
+    expect(updated.faceDetected).toBe(false);
+    expect(updated.faceCount).toBe(0);
+    expect(updated.expression).toBe('none');
+  });
+
+  it('clears all vision state when camera is turned off', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        faceDetected: true,
+        faceCount: 1,
+        expression: 'surprised',
+        confidence: 0.85,
+        landmarksDetected: true,
+        handDetected: true,
+        handCount: 1,
+        fingerCount: 4,
+        timestamp: '2026-09-19T10:00:00Z',
+        processingTimeMs: 40,
+      }),
+    } as Response);
+
+    await service.analyzeFrame('data:image/jpeg;base64,active_frame', true);
+    expect(service.getLatestState().faceDetected).toBe(true);
+
+    service.setCameraState(false);
+    const cleared = service.getLatestState();
+    expect(cleared.cameraActive).toBe(false);
+    expect(cleared.faceDetected).toBe(false);
+    expect(cleared.handDetected).toBe(false);
+    expect(cleared.fingerCount).toBe(0);
+    expect(cleared.lastUpdated).toBe(0);
+  });
 });
 

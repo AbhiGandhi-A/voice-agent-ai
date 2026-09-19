@@ -288,11 +288,13 @@ export class VoiceSessionManager {
       this.log('onresult', { results: event.results.length });
       if (this.isMuted) return;
 
-      if (this.recognitionMode === 'command' && (this.currentStatus === 'thinking' || this.currentStatus === 'speaking')) return;
-
-      // Barge-in: if the user speaks while the AI is speaking, stop the AI now.
-      if (this.currentStatus === 'speaking') {
-        this.interruptAI();
+      // Ignore speech recognized while AI is thinking, speaking, or playing TTS audio through speakers
+      if (
+        this.currentStatus === 'thinking' ||
+        this.currentStatus === 'speaking' ||
+        (typeof window !== 'undefined' && window.speechSynthesis && window.speechSynthesis.speaking)
+      ) {
+        return;
       }
 
       let interim = '';
@@ -323,7 +325,7 @@ export class VoiceSessionManager {
       }
 
       // Live interim bubble (only when we are actually listening for input).
-      if (interim && this.recognitionMode !== 'wake' && this.currentStatus !== 'thinking' && this.currentStatus !== 'speaking') {
+      if (interim && this.recognitionMode !== 'wake') {
         this.log('interim:', interim);
         this.onEvent({ type: 'user_transcript', text: interim });
       }
@@ -446,14 +448,14 @@ export class VoiceSessionManager {
         } else {
           utterance.lang = targetLang;
         }
-        utterance.onend = () => {
-          if (this.isListening) this.setStatus('listening');
-          if (this.autoWakeEnabled) this.recognitionMode = 'wake';
+        const finish = () => {
+          setTimeout(() => {
+            if (this.isListening) this.setStatus('listening');
+            if (this.autoWakeEnabled) this.recognitionMode = 'wake';
+          }, 350);
         };
-        utterance.onerror = () => {
-          if (this.isListening) this.setStatus('listening');
-          if (this.autoWakeEnabled) this.recognitionMode = 'wake';
-        };
+        utterance.onend = finish;
+        utterance.onerror = finish;
         window.speechSynthesis.speak(utterance);
       };
       const voices = window.speechSynthesis.getVoices();

@@ -69,9 +69,11 @@ export async function routeAiRequest(input: AiRouteInput, dependencies: Partial<
 
   logger.info('[AI ROUTER] provider = groq');
   logger.info('[AI ROUTER] executing provider = groq');
+  const visionDirective = '\n\n[SYSTEM DIRECTIVE] You do not possess direct eyes or camera vision. If asked if you can see the user, what they look like, their expressions, or how many fingers they are holding, do not simulate vision or claim to see them.';
+  const systemPrompt = `${input.systemPrompt}${visionDirective}`;
   const result = await deps.groq.generate(
     [
-      { role: 'system', content: input.systemPrompt },
+      { role: 'system', content: systemPrompt },
       ...input.history,
       { role: 'user', content: input.message },
     ],
@@ -138,14 +140,21 @@ function currentTimeResponse(input: AiRouteInput): AiRouteResult {
   const startedAt = Date.now();
   const current = getCurrentTime(input.runtimeContext?.timezone, input.runtimeContext?.currentTime ? new Date(input.runtimeContext.currentTime) : new Date());
   const language = normalizeAssistantLanguage(input.language);
+
   const text = language === 'hi'
-    ? `आज ${current.dayOfWeek}, ${current.date} है और समय ${current.time} है।`
+    ? `वर्तमान समय ${current.time} है और आज की तारीख ${current.date} (${current.dayOfWeek}) है।`
     : language === 'gu'
-      ? `આજે ${current.dayOfWeek}, ${current.date} છે અને સમય ${current.time} છે.`
+      ? `હાલનો સમય ${current.time} છે અને આજની તારીખ ${current.date} (${current.dayOfWeek}) છે.`
       : language === 'hinglish'
-        ? `Aaj ${current.dayOfWeek}, ${current.date} hai aur time ${current.time} hai.`
-        : `Today is ${current.dayOfWeek}, ${current.date}, and the time is ${current.time}.`;
-  return { text, model: 'runtime-clock', latencyMs: Date.now() - startedAt, source: 'current_time' };
+        ? `Abhi ka time ${current.time} hai aur aaj ki date ${current.date} (${current.dayOfWeek}) hai.`
+        : `The current time is ${current.time} on ${current.dayOfWeek}, ${current.date} (${current.timezone}).`;
+
+  return {
+    text,
+    model: 'runtime-clock',
+    latencyMs: Date.now() - startedAt,
+    source: 'current_time',
+  };
 }
 
 async function visionResponse(input: AiRouteInput, dependencies: AiRouterDependencies): Promise<AiRouteResult> {
@@ -192,8 +201,8 @@ async function visionResponse(input: AiRouteInput, dependencies: AiRouterDepende
     return { text, model: 'local-vision-router', latencyMs: Date.now() - startedAt, source: 'vision' };
   }
 
-  // 2.5 Stale Vision Result Protection (older than 10 seconds)
-  const isStale = visionState.lastUpdated > 0 && (Date.now() - visionState.lastUpdated) > 10000;
+  // 2.5 Stale Vision Result Protection (older than 3.5 seconds or never received)
+  const isStale = visionState.lastUpdated === 0 || (Date.now() - visionState.lastUpdated) > 3500;
   if (isStale) {
     const text = language === 'hi'
       ? 'कैमरा चालू है, लेकिन मुझे हाल ही का विज़न डेटा प्राप्त नहीं हो रहा है।'
@@ -210,12 +219,12 @@ async function visionResponse(input: AiRouteInput, dependencies: AiRouterDepende
   if (fingerQuery) {
     if (!visionState.handDetected || (visionState.handCount ?? 0) === 0) {
       const text = language === 'hi'
-        ? 'मुझे वर्तमान कैमरा फ्रेम में कोई हाथ दिखाई नहीं दे रहा है।'
+        ? 'कैमरा चालू है, लेकिन मुझे वर्तमान कैमरा फ्रेम में कोई हाथ या उंगलियां दिखाई नहीं दे रही हैं।'
         : language === 'gu'
-          ? 'મને વર્તમાન કેમેરા ફ્રેમમાં કોઈ હાથ દેખાતો નથી.'
+          ? 'કેમેરો ચાલુ છે, પરંતુ મને વર્તમાન કેમેરા ફ્રેમમાં કોઈ હાથ કે આંગળીઓ દેખાતી નથી.'
           : language === 'hinglish'
-            ? 'Mujhe current camera frame mein koi hand detect nahi ho raha hai.'
-            : "I don't detect a visible hand in the current camera frame.";
+            ? 'Camera on hai, lekin mujhe current camera frame mein koi hand ya fingers detect nahi ho rahi hain.'
+            : 'The camera is on, but I do not detect any visible hand or fingers in the current camera frame.';
 
       return { text, model: 'local-python-vision', latencyMs: Date.now() - startedAt, source: 'vision' };
     }
@@ -248,9 +257,9 @@ async function visionResponse(input: AiRouteInput, dependencies: AiRouterDepende
   // ─── 4. Face & Expression Branch ───────────────────────────────────────
   if (!visionState.faceDetected || visionState.faceCount === 0) {
     const text = language === 'hi'
-      ? 'कैमरा चालू है, लेकिन मुझे अभी फ्रेम में कोई चेहरा दिखाई नहीं दे रहा है।'
+      ? 'कैमरा चालू है, लेकिन मुझे वर्तमान कैमरा फ्रेम में कोई चेहरा दिखाई नहीं दे रहा है।'
       : language === 'gu'
-        ? 'કેમેરો ચાલુ છે, પરંતુ મને અત્યારે ફ્રેમમાં કોઈ ચહેરો દેખાતો નથી.'
+        ? 'કેમેરો ચાલુ છે, પરંતુ મને વર્તમાન કેમેરા ફ્રેમમાં કોઈ ચહેરો દેખાતો નથી.'
         : language === 'hinglish'
           ? 'Camera on hai, lekin mujhe frame mein koi face detect nahi ho raha hai.'
           : 'The camera is on, but I do not detect any face in the frame right now.';
@@ -265,10 +274,9 @@ async function visionResponse(input: AiRouteInput, dependencies: AiRouterDepende
     ? `हाँ, कैमरा चालू है और मैं आपको देख सकता हूँ। आपके चेहरे के भावों के आधार पर आपका expression ${expr}${confPct > 0 ? ` (${confPct}% विश्वास)` : ''} जैसा detect हुआ है।`
     : language === 'gu'
       ? `હા, કેમેરો ચાલુ છે અને હું તમને જોઈ શકું છું. તમારા ચહેરાના હાવભાવના આધારે તમારો expression ${expr}${confPct > 0 ? ` (${confPct}% વિશ્વાસ)` : ''} જેવો detect થયો છે.`
-      : language === 'hinglish'
-        ? `Haan, camera on hai aur main aapko dekh sakta hoon. Aapke chehre ke haav-bhaav ke mutabiq aapka expression ${expr}${confPct > 0 ? ` (${confPct}% confidence)` : ''} detect hua hai.`
-        : `Yes, the camera is on and I can see you. Based on the vision model, your facial expression is detected as ${expr}${confPct > 0 ? ` (${confPct}% confidence)` : ''}.`;
+    : language === 'hinglish'
+      ? `Haan, camera on hai aur main aapko dekh sakta hoon. Aapke chehre ke haav-bhaav ke mutabiq aapka expression ${expr}${confPct > 0 ? ` (${confPct}% confidence)` : ''} detect hua hai.`
+    : `Yes, the camera is on and I can see you. Based on the vision model, your facial expression is detected as ${expr}${confPct > 0 ? ` (${confPct}% confidence)` : ''}.`;
 
   return { text, model: 'local-python-vision', latencyMs: Date.now() - startedAt, source: 'vision' };
 }
-

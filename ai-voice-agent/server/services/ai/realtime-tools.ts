@@ -22,15 +22,22 @@ export interface WebSearchResult {
 
 const SEARCH_INTENT = /\b(find|search|look up|lookup|research|google|web search|search the web|retrieve|latest|recent|news|current price|current ceo|best .{0,30}(?:courses|hotels|restaurants|products)|what happened today)\b/i;
 const CURRENT_TIME_INTENT = /\b(what(?:'s| is)?\s+(?:the\s+)?(?:date|day|time)|which date|what day|what time|today(?:'s| is the)? date|tomorrow(?:'s| is the)? date|yesterday(?:'s| was the)? date)\b|(?:आज|તારીખ|દિવસ|સમય).*(?:कौन|क्या|છે|શું|આજે|today|date|day|time)/i;
-const VISION_INTENT = /\b(can you see (?:me|my face)|do you see (?:me|my face)|see my (?:face|expression)|how do i look|what is my (?:facial )?expression|what emotion (?:am i|is my)|am i smiling|am i happy|am i sad|look at me|check my (?:face|expression))\b|(?:देख|દેખ|જોઈ|હાવભાવ|मुस्कुरा|हस|expression|face).*(?:सकते|શકો|છો|हो|है|શું|क्या|चेहरा|ચહેરો)/i;
-const FINGER_INTENT = /\b(how many fingers|count (?:my|the)?\s*fingers|how many fingers (?:am i|can you|are|do you)|can you count (?:my|the)?\s*fingers|fingers (?:am i|can you|holding up|showing)|how many hands|count (?:the\s+)?hands|what hand gesture)\b|(?:उंगलियां|उंगली|आંગળી|હાથ|हाथ|finger|hand|hands).*(?:कितनी|કેટલી|ગણો|गिनो|दिख|દેખ|count|many|holding|showing|visible|show)/i;
+const FINGER_INTENT =
+  /\b(how many (?:fingers|hands)|count (?:my |the )?(?:fingers|hands)|can you count (?:my |the )?(?:fingers|hands)|how many fingers (?:am i|can you|are|do you|holding|showing)|(?:fingers|hands) (?:am i|can you|holding up|showing)|what hand gesture|see my (?:fingers|hands|thumb|palm)|can you see (?:my )?(?:fingers|hands|thumb|palm)|do you see (?:my )?(?:fingers|hands|thumb|palm))\b|(?:उंगलियां|उंगली|उंगलियों|आંગળી|આંગળીઓ|હાથ|हाथ|finger|fingers|hand|hands|thumb|palm).*(?:कितनी|कितने|કેટલી|ગણો|गिनो|दिख|દેખ|count|many|holding|showing|visible|show|see|gesture)/i;
+const VISION_INTENT =
+  /\b(can you see (?:me|my face|my expression|anything|anyone|who)|do you see (?:me|my face|my expression|anything|anyone|who)|are you able to see (?:me|anything)|are you seeing (?:me|my face)|see my (?:face|expression|emotion)|how do i look|what is my (?:facial )?expression|what emotion (?:am i|is my)|am i (?:smiling|happy|sad|visible|in front)|am i looking at|look at me|check my (?:face|expression)|what do you see|what can you see|describe what you see|tell me what you see|who is in front of (?:you|the camera)|is someone in front of (?:you|the camera)|is anyone in front of (?:you|the camera)|is (?:my |the )?camera (?:on|working)|is camera (?:on|working)|expression|facial expression|emotion|vision)\b|(?:देख|દેખ|જોઈ|હાવભાવ|ભાવ|મુખ|मुस्कुरा|हस|face|camera|vision|chehra|chehro|dikh|expression|emotion).*(?:सकते|શકો|છો|हो|है|શું|क्या|चेहरा|ચહેરો|visible|lag|kaisa|kem|kaise|batao|bolo|kaho|hai|che|chhe|\?)/i;
 
 export function isFingerQuery(message: string): boolean {
-  return FINGER_INTENT.test(message) || /\b(finger|fingers|hand|hands|thumb|pinky)\b/i.test(message);
+  return FINGER_INTENT.test(message) || /\b(finger|fingers|hand|hands|thumb|thumbs|palm|pinky|ungli|ungliya|aangli|aangliyo)\b/i.test(message);
+}
+
+export function isVisionQuery(message: string): boolean {
+  if (SEARCH_INTENT.test(message)) return false;
+  return VISION_INTENT.test(message) || FINGER_INTENT.test(message) || isFingerQuery(message);
 }
 
 export function selectRealtimeTool(message: string): 'current_time' | 'web_search' | 'vision' | null {
-  if ((VISION_INTENT.test(message) || FINGER_INTENT.test(message)) && !SEARCH_INTENT.test(message)) return 'vision';
+  if (isVisionQuery(message)) return 'vision';
   if (CURRENT_TIME_INTENT.test(message) && !SEARCH_INTENT.test(message)) return 'current_time';
   return SEARCH_INTENT.test(message) ? 'web_search' : null;
 }

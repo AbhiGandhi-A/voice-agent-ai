@@ -250,6 +250,15 @@ class VisionDetector:
                         total_finger_count += f_count
                         conf_val = round(float(conf), 2)
                         conf_sum += conf_val
+                if hand_res is not None and len(hand_res) >= 132:
+                    landmarks = hand_res[4:67].reshape(21, 3)
+                    conf = float(hand_res[131])
+                    f_count, f_states = count_fingers_from_landmarks(landmarks)
+                    hand_detected = True
+                    hand_count += 1
+                    total_finger_count += f_count
+                    conf_val = round(conf, 2)
+                    conf_sum += conf_val
 
                         hands_detail.append({
                             "handIndex": idx + 1,
@@ -257,9 +266,17 @@ class VisionDetector:
                             "fingers": f_states,
                             "confidence": conf_val,
                         })
+                    hands_detail.append({
+                        "handIndex": idx + 1,
+                        "fingerCount": f_count,
+                        "fingers": f_states,
+                        "confidence": conf_val,
+                    })
 
                         if idx == 0:
                             primary_fingers = f_states
+                    if idx == 0:
+                        primary_fingers = f_states
 
             if hand_count > 0:
                 finger_confidence = round(conf_sum / hand_count, 2)

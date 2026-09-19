@@ -1,4 +1,5 @@
 import { Message, VoiceStatus } from '../types';
+import { recognitionLocaleForLanguage, ttsLanguageForLanguage } from './language';
 
 export interface VoiceSessionConfig {
   aiModel: string;
@@ -190,10 +191,11 @@ export class VoiceSessionManager {
   }
 
   private recognitionLanguage(): string {
-    const lang = this.config.whisperLanguage;
-    if (lang === 'Hindi') return 'hi-IN';
-    if (lang === 'Gujarati') return 'gu-IN';
-    return 'en-US';
+    return recognitionLocaleForLanguage(this.config.whisperLanguage ?? 'English');
+  }
+
+  private ttsLanguage(): string {
+    return ttsLanguageForLanguage(this.config.whisperLanguage ?? 'English');
   }
 
   /**
@@ -369,17 +371,33 @@ export class VoiceSessionManager {
     }
 
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel(); // Stop prior audio
+      window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = 1.05;
       utterance.pitch = 1.0;
 
-      // Select natural voice if available
+      const targetLang = this.ttsLanguage();
       const voices = window.speechSynthesis.getVoices();
-      const preferred = voices.find(
-        (v) => v.lang.includes('en') && (v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('Google'))
-      );
-      if (preferred) utterance.voice = preferred;
+      const langPrefix = targetLang.split('-')[0].toLowerCase();
+      const preferred = voices.find((voice) => {
+        const lang = voice.lang.toLowerCase();
+        return lang === targetLang.toLowerCase() || lang.startsWith(langPrefix + '-');
+      }) ?? voices.find((voice) => voice.lang.toLowerCase().startsWith(langPrefix));
+
+      if (preferred) {
+        utterance.voice = preferred;
+        utterance.lang = preferred.lang;
+      } else {
+        const fallback = voices.find((voice) => voice.lang.toLowerCase().startsWith('en')) ?? voices[0];
+        if (fallback) {
+          utterance.voice = fallback;
+          utterance.lang = fallback.lang;
+        }
+      }
+
+      if (!utterance.lang) {
+        utterance.lang = targetLang;
+      }
 
       utterance.onend = () => {
         if (this.isListening) {
@@ -395,7 +413,6 @@ export class VoiceSessionManager {
 
       window.speechSynthesis.speak(utterance);
     } else {
-      // Fallback timer if speech synth isn't enabled
       const wordCount = text.split(' ').length;
       const durationMs = Math.max(2500, (wordCount / 3) * 1000);
       setTimeout(() => {

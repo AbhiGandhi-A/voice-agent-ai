@@ -126,7 +126,7 @@ export interface RuntimeContext {
   localDateTime: string;
 }
 
-export const sendChat = (payload: { message: string; conversationId?: string; contactId?: string; runtimeContext?: RuntimeContext }) => api.post<ChatResult>('/ai/chat', payload);
+export const sendChat = (payload: { message: string; conversationId?: string; contactId?: string; runtimeContext?: RuntimeContext; language?: string }) => api.post<ChatResult>('/ai/chat', payload);
 
 export interface MemoryRecord {
   id: string;

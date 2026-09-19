@@ -24,6 +24,7 @@ import { VoiceSessionManager } from './lib/voice-session';
 import { supabase } from './lib/supabase';
 import { useAppData } from './hooks/useAppData';
 import { useAuth } from './hooks/useAuth';
+import { AssistantLanguage, detectExplicitLanguageCommand, detectLanguageFromText, languageSettingLabel, normalizeAssistantLanguage } from './lib/language';
 
 type ConnectionStatus = 'Connected' | 'Connecting' | 'Disconnected' | 'Error';
 
@@ -51,6 +52,8 @@ export default function App() {
   const [amplitude, setAmplitude] = useState<number>(0);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [liveInterimText, setLiveInterimText] = useState<string>('');
+  const [activeLanguage, setActiveLanguage] = useState<AssistantLanguage>('en');
+  const activeLanguageRef = useRef<AssistantLanguage>('en');
 
   // Live-call UI override so the original navigation behavior is preserved.
   const [activeCallUi, setActiveCallUi] = useState<Call | null>(null);
@@ -65,6 +68,34 @@ export default function App() {
   }, [data.activeLiveCall]);
 
   const connectionStatus: ConnectionStatus = manualStatus ?? data.connectionStatus;
+
+  const updateConversationLanguage = useCallback(
+    (message: string, source: 'user' | 'system' = 'user') => {
+      const explicit = detectExplicitLanguageCommand(message);
+      if (explicit) {
+        const next = explicit;
+        activeLanguageRef.current = next;
+        setActiveLanguage(next);
+        const label = languageSettingLabel(next);
+        void data.onSaveVoiceSettings({ ...data.voiceSettings, whisperLanguage: label });
+        return next;
+      }
+
+      if (source === 'user' && activeLanguageRef.current !== 'en') {
+        return activeLanguageRef.current;
+      }
+
+      const detected = detectLanguageFromText(message);
+      if (detected !== 'en' || activeLanguageRef.current === 'en') {
+        activeLanguageRef.current = detected;
+        setActiveLanguage(detected);
+        const label = languageSettingLabel(detected);
+        void data.onSaveVoiceSettings({ ...data.voiceSettings, whisperLanguage: label });
+      }
+      return activeLanguageRef.current;
+    },
+    [data]
+  );
 
   // Initialize VoiceSessionManager once, keeping state/event handlers fresh via refs.
   useEffect(() => {
@@ -87,7 +118,8 @@ export default function App() {
           setLiveInterimText(event.text);
         } else if (event.type === 'transcript_final' && event.text) {
           setLiveInterimText('');
-          void dataRef.current.handleSendMessage(event.text).then((reply) => {
+          const nextLanguage = updateConversationLanguage(event.text, 'user');
+          void dataRef.current.handleSendMessage(event.text, nextLanguage).then((reply) => {
             if (reply) {
               voiceManagerRef.current?.speakText(reply, false);
             } else {
@@ -153,7 +185,8 @@ export default function App() {
   };
 
   const handleSendMessage = async (text: string) => {
-    await data.handleSendMessage(text);
+    const nextLanguage = updateConversationLanguage(text, 'user');
+    await data.handleSendMessage(text, nextLanguage);
   };
 
   const handlePlayMessage = (text: string) => {

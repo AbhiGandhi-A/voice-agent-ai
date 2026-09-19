@@ -141,7 +141,7 @@ export interface AppData {
   refreshConversations: () => Promise<void>;
 
   // voice / web chat
-  handleSendMessage: (text: string) => Promise<string | undefined>;
+  handleSendMessage: (text: string, language?: string) => Promise<string | undefined>;
   appendAiReply: (text: string) => Promise<void>;
   getConversationIdForChat: () => string | null;
 
@@ -332,7 +332,7 @@ export function useAppData(enabled = true): AppData {
   }, []);
 
   const handleSendMessage = useCallback(
-    async (text: string) => {
+    async (text: string, language?: string) => {
       const trimmed = text.trim();
       if (!trimmed) return undefined;
 
@@ -343,6 +343,7 @@ export function useAppData(enabled = true): AppData {
           message: trimmed,
           conversationId: sessionConvIdRef.current === CONV_PLACEHOLDER_ID ? undefined : sessionConvIdRef.current,
           runtimeContext: getRuntimeContext(),
+          language,
         });
         if (res.conversationId) {
           promotePlaceholderToServer(res.conversationId, trimmed.slice(0, 40));

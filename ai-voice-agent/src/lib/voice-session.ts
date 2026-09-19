@@ -1,5 +1,6 @@
 import { Message, VoiceStatus } from '../types';
-import { recognitionLocaleForLanguage, ttsLanguageForLanguage } from './language';
+import { recognitionLocaleForLanguage, selectVoiceForLanguage, ttsLanguageForLanguage } from './language';
+import { commandAfterWakeWord, containsWakeWord } from './wake-word';
 
 export interface VoiceSessionConfig {
   aiModel: string;
@@ -17,6 +18,7 @@ export interface VoiceSessionConfig {
   chatEndpoint?: string;
   /** Returns the server conversation id to continue (null starts a new one). */
   getConversationId?: () => string | null;
+  autoWake?: boolean;
 }
 
 export type VoiceEventCallback = (event: {
@@ -99,6 +101,9 @@ export class VoiceSessionManager {
   private ws: WebSocket | null = null;
   private onAmplitudeCallback?: (amp: number) => void;
   private historyProvider?: () => Message[];
+  private recognitionMode: 'manual' | 'wake' | 'command' = 'manual';
+  private autoWakeEnabled = false;
+  private ttsVoiceTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(config: VoiceSessionConfig, onEvent: VoiceEventCallback) {
     this.config = config;
@@ -112,14 +117,26 @@ export class VoiceSessionManager {
   }
 
   public updateConfig(newConfig: Partial<VoiceSessionConfig>) {
+    const autoWakeChanged = newConfig.autoWake !== undefined && newConfig.autoWake !== this.config.autoWake;
     this.config = { ...this.config, ...newConfig };
+    if (autoWakeChanged) this.setAutoWakeEnabled(Boolean(newConfig.autoWake));
+  }
+
+  public async setAutoWakeEnabled(enabled: boolean): Promise<boolean> {
+    const wasEnabled = this.autoWakeEnabled;
+    this.autoWakeEnabled = enabled;
+    if (!enabled) {
+      if (wasEnabled && this.recognitionMode !== 'manual') this.stopSession();
+      return true;
+    }
+    return this.startWakeWordListener();
   }
 
   public setAmplitudeListener(callback: (amp: number) => void) {
     this.onAmplitudeCallback = callback;
   }
 
-  public async startSession(): Promise<boolean> {
+  public async startSession(mode: 'manual' | 'wake' = 'manual'): Promise<boolean> {
     // Guard against concurrent/duplicate starts (e.g. double-click on the mic).
     // Starting a second Web Speech recognition aborts the active Chrome session
     // with a silent 'aborted' error — the exact "stuck Listening, no transcript".
@@ -129,6 +146,7 @@ export class VoiceSessionManager {
     }
     this.starting = true;
     this.stopRequested = false;
+    this.recognitionMode = mode;
     if (this.restartTimer) {
       clearTimeout(this.restartTimer);
       this.restartTimer = null;
@@ -137,8 +155,15 @@ export class VoiceSessionManager {
     try {
       this.setStatus('connecting');
 
-      // Request browser microphone
-      if (typeof navigator !== 'undefined' && navigator.mediaDevices) {
+      // Request browser microphone before starting SpeechRecognition so wake mode
+      // never claims to be listening without a granted local microphone.
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+        this.isListening = false;
+        this.setStatus('error');
+        this.onEvent({ type: 'error', text: 'Microphone access is not supported in this browser.' });
+        return false;
+      }
+      if (navigator.mediaDevices) {
         try {
           this.mediaStream = await navigator.mediaDevices.getUserMedia({
             audio: {
@@ -163,7 +188,11 @@ export class VoiceSessionManager {
             this.trackAudioVolume();
           }
         } catch (micErr) {
-          console.warn('Microphone permission issue or no mic device:', micErr);
+          this.log('microphone unavailable:', micErr instanceof Error ? micErr.message : 'unknown');
+          this.isListening = false;
+          this.setStatus('error');
+          this.onEvent({ type: 'error', text: 'Microphone access was denied or is unavailable. Allow microphone access and try again.' });
+          return false;
         }
       }
 
@@ -172,6 +201,8 @@ export class VoiceSessionManager {
       // Initialize Web Speech Recognition if available in browser
       if (!this.startRecognitionInstance()) {
         this.isListening = false;
+        this.mediaStream?.getTracks().forEach((track) => track.stop());
+        this.mediaStream = null;
         this.setStatus('error');
         return false;
       }
@@ -184,6 +215,16 @@ export class VoiceSessionManager {
     } finally {
       this.starting = false;
     }
+  }
+
+  private async startWakeWordListener(): Promise<boolean> {
+    if (this.isListening) {
+      this.recognitionMode = 'wake';
+      this.stopRequested = false;
+      this.setStatus('listening');
+      return true;
+    }
+    return this.startSession('wake');
   }
 
   private log(...args: unknown[]) {
@@ -245,6 +286,8 @@ export class VoiceSessionManager {
       this.log('onresult', { results: event.results.length });
       if (this.isMuted) return;
 
+      if (this.recognitionMode === 'command' && (this.currentStatus === 'thinking' || this.currentStatus === 'speaking')) return;
+
       // Barge-in: if the user speaks while the AI is speaking, stop the AI now.
       if (this.currentStatus === 'speaking') {
         this.interruptAI();
@@ -277,13 +320,25 @@ export class VoiceSessionManager {
       }
 
       // Live interim bubble (only when we are actually listening for input).
-      if (interim && this.currentStatus !== 'thinking' && this.currentStatus !== 'speaking') {
+      if (interim && this.recognitionMode !== 'wake' && this.currentStatus !== 'thinking' && this.currentStatus !== 'speaking') {
         this.log('interim:', interim);
         this.onEvent({ type: 'user_transcript', text: interim });
       }
 
       if (final) {
         this.log('final:', final);
+        if (this.recognitionMode === 'wake') {
+          const heard = `${interim} ${final}`.trim();
+          if (!containsWakeWord(heard)) return;
+          const command = commandAfterWakeWord(heard);
+          this.recognitionMode = 'command';
+          this.setStatus('listening');
+          if (!command) return;
+          this.onEvent({ type: 'user_transcript', text: command });
+          this.setStatus('thinking');
+          this.onEvent({ type: 'transcript_final', text: command });
+          return;
+        }
         this.setStatus('thinking');
         // Clear the live bubble and hand the REAL final transcript to the app,
         // which routes it through the existing authenticated message flow.
@@ -372,53 +427,54 @@ export class VoiceSessionManager {
 
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.05;
-      utterance.pitch = 1.0;
-
       const targetLang = this.ttsLanguage();
+      const speak = () => {
+        const voices = window.speechSynthesis.getVoices();
+        const preferred = selectVoiceForLanguage(voices, targetLang);
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 1.05;
+        utterance.pitch = 1.0;
+        this.log(`[TTS] requested language=${targetLang}`);
+        this.log(`[TTS] available Gujarati voices=${voices.filter((voice) => voice.lang.toLowerCase().startsWith('gu')).length}`);
+        this.log(`[TTS] selected voice=${preferred?.name ?? 'browser fallback'}`);
+        if (preferred) {
+          utterance.voice = preferred;
+          utterance.lang = preferred.lang;
+        } else {
+          utterance.lang = targetLang;
+        }
+        utterance.onend = () => {
+          if (this.isListening) this.setStatus('listening');
+          if (this.autoWakeEnabled) this.recognitionMode = 'wake';
+        };
+        utterance.onerror = () => {
+          if (this.isListening) this.setStatus('listening');
+          if (this.autoWakeEnabled) this.recognitionMode = 'wake';
+        };
+        window.speechSynthesis.speak(utterance);
+      };
       const voices = window.speechSynthesis.getVoices();
-      const langPrefix = targetLang.split('-')[0].toLowerCase();
-      const preferred = voices.find((voice) => {
-        const lang = voice.lang.toLowerCase();
-        return lang === targetLang.toLowerCase() || lang.startsWith(langPrefix + '-');
-      }) ?? voices.find((voice) => voice.lang.toLowerCase().startsWith(langPrefix));
-
-      if (preferred) {
-        utterance.voice = preferred;
-        utterance.lang = preferred.lang;
+      if (this.ttsVoiceTimer) clearTimeout(this.ttsVoiceTimer);
+      if (voices.length > 0) {
+        speak();
       } else {
-        const fallback = voices.find((voice) => voice.lang.toLowerCase().startsWith('en')) ?? voices[0];
-        if (fallback) {
-          utterance.voice = fallback;
-          utterance.lang = fallback.lang;
-        }
+        const previousHandler = window.speechSynthesis.onvoiceschanged;
+        let started = false;
+        const startWhenReady = () => {
+          if (started) return;
+          started = true;
+          window.speechSynthesis.onvoiceschanged = previousHandler;
+          speak();
+        };
+        window.speechSynthesis.onvoiceschanged = startWhenReady;
+        this.ttsVoiceTimer = setTimeout(startWhenReady, 250);
       }
-
-      if (!utterance.lang) {
-        utterance.lang = targetLang;
-      }
-
-      utterance.onend = () => {
-        if (this.isListening) {
-          this.setStatus('listening');
-        }
-      };
-
-      utterance.onerror = () => {
-        if (this.isListening) {
-          this.setStatus('listening');
-        }
-      };
-
-      window.speechSynthesis.speak(utterance);
     } else {
       const wordCount = text.split(' ').length;
       const durationMs = Math.max(2500, (wordCount / 3) * 1000);
       setTimeout(() => {
-        if (this.isListening) {
-          this.setStatus('listening');
-        }
+        if (this.isListening) this.setStatus('listening');
+        if (this.autoWakeEnabled) this.recognitionMode = 'wake';
       }, durationMs);
     }
   }
@@ -435,6 +491,7 @@ export class VoiceSessionManager {
 
   public resumeListening() {
     if (this.isListening && !this.stopRequested) {
+      if (this.autoWakeEnabled) this.recognitionMode = 'wake';
       this.setStatus('listening');
     }
   }
@@ -457,6 +514,10 @@ export class VoiceSessionManager {
     if (this.restartTimer) {
       clearTimeout(this.restartTimer);
       this.restartTimer = null;
+    }
+    if (this.ttsVoiceTimer) {
+      clearTimeout(this.ttsVoiceTimer);
+      this.ttsVoiceTimer = null;
     }
     if (this.animFrameId) cancelAnimationFrame(this.animFrameId);
 

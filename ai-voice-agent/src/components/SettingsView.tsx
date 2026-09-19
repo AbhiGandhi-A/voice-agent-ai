@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { Save, Sparkles, Volume2, PhoneCall, Server, Check, Sliders, Shield, Trash2 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Save, Sparkles, Volume2, PhoneCall, Server, Check, Trash2, Camera } from 'lucide-react';
 import { AISettings, CallSettings, SystemConfig, VoiceSettings } from '../types';
 import { deleteMemory, listMemories, MemoryRecord, updateMemory } from '../lib/api';
+import { cameraErrorMessage, stopMediaStream } from '../lib/camera';
 
 interface SettingsViewProps {
   aiSettings: AISettings;
@@ -32,6 +33,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [memories, setMemories] = useState<MemoryRecord[]>([]);
   const [memoryError, setMemoryError] = useState('');
   const [savedNotice, setSavedNotice] = useState(false);
+  const [cameraEnabled, setCameraEnabled] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
     if (activeSection !== 'system') return;
@@ -39,6 +44,42 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       .then((response) => setMemories(response.memories))
       .catch(() => setMemoryError('Could not load memories.'));
   }, [activeSection]);
+
+  useEffect(() => () => {
+    stopMediaStream(cameraStreamRef.current);
+    cameraStreamRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    if (cameraEnabled && cameraVideoRef.current) {
+      cameraVideoRef.current.srcObject = cameraStreamRef.current;
+    }
+  }, [cameraEnabled]);
+
+  const toggleCamera = async (enabled: boolean) => {
+    setCameraError('');
+    if (!enabled) {
+      stopMediaStream(cameraStreamRef.current);
+      cameraStreamRef.current = null;
+      if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
+      setCameraEnabled(false);
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError('Camera access is not supported in this browser.');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      stopMediaStream(cameraStreamRef.current);
+      cameraStreamRef.current = stream;
+      if (cameraVideoRef.current) cameraVideoRef.current.srcObject = stream;
+      setCameraEnabled(true);
+    } catch (error) {
+      setCameraEnabled(false);
+      setCameraError(cameraErrorMessage(error));
+    }
+  };
 
   const handleDeleteMemory = async (id: string) => {
     try {
@@ -257,6 +298,44 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </select>
               </div>
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex items-center justify-between p-4 rounded-xl bg-[#080d19] border border-slate-800">
+                <div className="flex items-center gap-3">
+                  <Camera className="w-4 h-4 text-slate-400" />
+                  <div>
+                    <h4 className="font-semibold text-white">Camera / Webcam</h4>
+                    <p className="text-[11px] text-slate-400">Local browser preview only. No frames are uploaded.</p>
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={cameraEnabled}
+                  onChange={(event) => void toggleCamera(event.target.checked)}
+                  className="w-4 h-4 accent-indigo-600 rounded cursor-pointer"
+                  aria-label="Enable camera"
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-4 rounded-xl bg-[#080d19] border border-slate-800">
+                <div>
+                  <h4 className="font-semibold text-white">Auto Wake</h4>
+                  <p className="text-[11px] text-slate-400">Listen locally for "Hey Robo" before starting a command.</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={voice.autoWake}
+                  onChange={(event) => setVoice({ ...voice, autoWake: event.target.checked })}
+                  className="w-4 h-4 accent-indigo-600 rounded cursor-pointer"
+                  aria-label="Enable Auto Wake"
+                />
+              </div>
+            </div>
+
+            {cameraEnabled && (
+              <video ref={cameraVideoRef} autoPlay muted playsInline className="w-full max-w-md aspect-video rounded-xl bg-[#080d19] border border-slate-800 object-cover" />
+            )}
+            {cameraError && <p className="text-xs text-rose-300">{cameraError}</p>}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">

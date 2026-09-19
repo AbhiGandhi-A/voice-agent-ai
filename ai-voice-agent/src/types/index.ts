@@ -99,6 +99,7 @@ export interface VoiceSettings {
   speakingSpeed: number;
   silenceThresholdMs: number;
   autoDetectVad: boolean;
+  autoWake: boolean;
 }
 
 export interface CallSettings {

@@ -240,7 +240,7 @@ export const fetchTrend = (bucket = 'day') => api.get<Array<{ label: string; cou
 // ─── Settings ──────────────────────────────────────────────────────────
 export interface BackendSettings {
   ai: { model: string; temperature: number; maxTokens: number; systemPrompt: string; historyLimit: number };
-  voice: { whisperModel: string; whisperLanguage: string; ttsEngine: string; ttsVoice: string; speakingSpeed: number; silenceThresholdMs: number; autoDetectVad: boolean };
+  voice: { whisperModel: string; whisperLanguage: string; ttsEngine: string; ttsVoice: string; speakingSpeed: number; silenceThresholdMs: number; autoDetectVad: boolean; autoWake: boolean };
   call: { autoAnswer: boolean; aiGreeting: string; maxCallDurationMinutes: number; enableRecording: boolean; enableHumanTakeover: boolean; bargeInEnabled: boolean };
 }
 

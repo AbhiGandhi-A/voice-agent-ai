@@ -33,6 +33,7 @@ export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
   speakingSpeed: 1.0,
   silenceThresholdMs: 900,
   autoDetectVad: true,
+  autoWake: false,
 };
 
 export const DEFAULT_CALL_SETTINGS: CallSettings = {

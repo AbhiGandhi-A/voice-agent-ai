@@ -17,6 +17,7 @@ export interface UserSettings {
     speakingSpeed: number;
     silenceThresholdMs: number;
     autoDetectVad: boolean;
+    autoWake: boolean;
   };
   call: {
     autoAnswer: boolean;
@@ -45,6 +46,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     speakingSpeed: 1.0,
     silenceThresholdMs: 900,
     autoDetectVad: true,
+    autoWake: false,
   },
   call: {
     autoAnswer: true,

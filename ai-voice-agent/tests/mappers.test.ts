@@ -129,7 +129,7 @@ describe('mappers', () => {
     it('merges remote settings over defaults', () => {
       const mapped = mapBackendSettings({
         ai: { model: 'llama3.2:3b', temperature: 0.3, maxTokens: 100, systemPrompt: 'Be brief.', historyLimit: 10 },
-        voice: { whisperModel: 'small', whisperLanguage: 'English', ttsEngine: 'piper', ttsVoice: 'amy', speakingSpeed: 1.1, silenceThresholdMs: 700, autoDetectVad: false },
+        voice: { whisperModel: 'small', whisperLanguage: 'English', ttsEngine: 'piper', ttsVoice: 'amy', speakingSpeed: 1.1, silenceThresholdMs: 700, autoDetectVad: false, autoWake: false },
         call: { autoAnswer: false, aiGreeting: 'Hi', maxCallDurationMinutes: 5, enableRecording: false, enableHumanTakeover: false, bargeInEnabled: false },
       });
       expect(mapped.ai.model).toBe('llama3.2:3b');

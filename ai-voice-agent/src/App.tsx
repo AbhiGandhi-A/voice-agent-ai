@@ -106,6 +106,7 @@ export default function App() {
         whisperLanguage: data.voiceSettings.whisperLanguage,
         ttsVoice: data.voiceSettings.ttsVoice,
         silenceThresholdMs: data.voiceSettings.silenceThresholdMs,
+        autoWake: data.voiceSettings.autoWake,
         systemPrompt: data.aiSettings.systemPrompt,
         getAuthToken: getSupabaseToken,
         chatEndpoint: '/api/ai/chat',
@@ -152,6 +153,7 @@ export default function App() {
       whisperLanguage: data.voiceSettings.whisperLanguage,
       ttsVoice: data.voiceSettings.ttsVoice,
       silenceThresholdMs: data.voiceSettings.silenceThresholdMs,
+      autoWake: data.voiceSettings.autoWake,
       systemPrompt: data.aiSettings.systemPrompt,
     });
   }, [
@@ -161,6 +163,7 @@ export default function App() {
     data.voiceSettings.whisperLanguage,
     data.voiceSettings.ttsVoice,
     data.voiceSettings.silenceThresholdMs,
+    data.voiceSettings.autoWake,
   ]);
 
   // Handlers for Voice

@@ -117,6 +117,19 @@ export function ttsLanguageForLanguage(language: AssistantLanguage | string): st
   return 'en-US';
 }
 
+export function selectVoiceForLanguage(voices: SpeechSynthesisVoice[], targetLanguage: string): SpeechSynthesisVoice | undefined {
+  const target = targetLanguage.toLowerCase();
+  const prefix = target.split('-')[0];
+  const exact = voices.find((voice) => voice.lang.toLowerCase() === target);
+  if (exact) return exact;
+  const regional = voices.find((voice) => voice.lang.toLowerCase().startsWith(`${prefix}-`));
+  if (regional) return regional;
+  if (prefix === 'gu') {
+    return voices.find((voice) => /^(hi|en-in|mr|bn|ta|te|kn)-/i.test(voice.lang));
+  }
+  return voices.find((voice) => voice.lang.toLowerCase().startsWith(prefix));
+}
+
 export function buildLanguageSystemInstruction(language: AssistantLanguage | string): string {
   const normalized = normalizeAssistantLanguage(language);
   if (normalized === 'hi') {

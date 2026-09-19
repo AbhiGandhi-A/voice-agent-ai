@@ -221,16 +221,13 @@ export class VoiceSessionManager {
       return false;
     }
 
-    // continuous=false + restart-on-end is the most reliable Chrome pattern:
-    // each utterance ends cleanly with an isFinal result, then onend restarts
-    // so the agent keeps listening.
-    rec.continuous = false;
+    rec.continuous = true;
     rec.interimResults = true;
     rec.lang = this.recognitionLanguage();
     rec.maxAlternatives = 1;
 
     rec.onstart = () => {
-      this.log('onstart');
+      this.log('started');
       this.recognitionActive = true;
       this.restartAttempts = 0;
     };
@@ -267,11 +264,12 @@ export class VoiceSessionManager {
 
       // Live interim bubble (only when we are actually listening for input).
       if (interim && this.currentStatus !== 'thinking' && this.currentStatus !== 'speaking') {
+        this.log('interim:', interim);
         this.onEvent({ type: 'user_transcript', text: interim });
       }
 
       if (final) {
-        this.log('final transcript:', JSON.stringify(final));
+        this.log('final:', final);
         this.setStatus('thinking');
         // Clear the live bubble and hand the REAL final transcript to the app,
         // which routes it through the existing authenticated message flow.
@@ -311,7 +309,7 @@ export class VoiceSessionManager {
     };
 
     rec.onend = () => {
-      this.log('onend');
+      this.log('ended');
       this.recognitionActive = false;
       if (this.recognition === rec) this.recognition = null;
       // Auto-restart so the agent keeps listening after each utterance/round.
@@ -436,9 +434,13 @@ export class VoiceSessionManager {
     if (this.recognition) {
       this.recognitionActive = false;
       try {
-        this.recognition.abort();
+        this.recognition.stop();
       } catch {
-        // ignore
+        try {
+          this.recognition.abort();
+        } catch {
+          // ignore
+        }
       }
       this.recognition.onstart = null;
       this.recognition.onresult = null;

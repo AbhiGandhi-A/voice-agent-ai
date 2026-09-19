@@ -294,6 +294,7 @@ export default function App() {
                         <LiveTranscript
                           messages={data.currentConversation.messages}
                           onPlayMessage={handlePlayMessage}
+                          onResetChat={() => void data.resetChat()}
                           liveInterimText={liveInterimText}
                           isThinking={voiceStatus === 'thinking'}
                         />

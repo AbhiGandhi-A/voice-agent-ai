@@ -138,6 +138,7 @@ export interface AppData {
 
   // conversation actions
   deleteConversation: (id: string) => void;
+  resetChat: () => Promise<void>;
   refreshConversations: () => Promise<void>;
 
   // voice / web chat
@@ -303,6 +304,17 @@ export function useAppData(enabled = true): AppData {
     },
     [currentConvId]
   );
+
+  const resetChat = useCallback(async () => {
+    const currentId = sessionConvIdRef.current;
+    if (currentId !== CONV_PLACEHOLDER_ID) {
+      await apiDeleteConversation(currentId).catch(() => undefined);
+    }
+    sessionConvIdRef.current = CONV_PLACEHOLDER_ID;
+    setCurrentConvId(CONV_PLACEHOLDER_ID);
+    setPlaceholderMessages([]);
+    setConversations((previous) => previous.filter((conversation) => conversation.id !== currentId));
+  }, []);
 
   // ── web chat ──────────────────────────────────────────────────────────
   function appendToSession(msg: Message): void {
@@ -557,6 +569,7 @@ export function useAppData(enabled = true): AppData {
     loading,
     selectConversation,
     deleteConversation,
+    resetChat,
     refreshConversations,
     handleSendMessage,
     appendAiReply,

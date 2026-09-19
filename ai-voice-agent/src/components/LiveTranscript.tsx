@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Volume2, Copy, Check, Sparkles, Wrench } from 'lucide-react';
+import { User, Volume2, Copy, Check, Sparkles, Wrench, RotateCcw } from 'lucide-react';
 import { Message } from '../types';
 
 interface LiveTranscriptProps {
@@ -7,6 +7,7 @@ interface LiveTranscriptProps {
   onPlayMessage?: (text: string) => void;
   liveInterimText?: string;
   isThinking?: boolean;
+  onResetChat?: () => void;
 }
 
 export const LiveTranscript: React.FC<LiveTranscriptProps> = ({
@@ -14,6 +15,7 @@ export const LiveTranscript: React.FC<LiveTranscriptProps> = ({
   onPlayMessage,
   liveInterimText,
   isThinking,
+  onResetChat,
 }) => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -24,7 +26,22 @@ export const LiveTranscript: React.FC<LiveTranscriptProps> = ({
   };
 
   return (
-    <div id="live-conversation-container" className="flex flex-col gap-4">
+    <div id="live-conversation-container" className="flex flex-col gap-3">
+      <div className="flex items-center justify-between px-1">
+        <span className="text-xs font-semibold text-slate-400">Conversation</span>
+        <button
+          type="button"
+          onClick={onResetChat}
+          disabled={!onResetChat || messages.length === 0}
+          className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] text-slate-400 hover:text-white hover:bg-slate-800/70 disabled:cursor-not-allowed disabled:opacity-40"
+          title="Reset chat"
+          aria-label="Reset chat"
+        >
+          <RotateCcw className="w-3 h-3" />
+          <span>Reset</span>
+        </button>
+      </div>
+      <div className="max-h-[min(55vh,620px)] overflow-y-auto pr-2 flex flex-col gap-4 overscroll-contain">
       {messages.map((msg) => {
         const isUser = msg.role === 'user';
         return (
@@ -130,6 +147,7 @@ export const LiveTranscript: React.FC<LiveTranscriptProps> = ({
           <span>AI is processing your query...</span>
         </div>
       )}
+      </div>
     </div>
   );
 };

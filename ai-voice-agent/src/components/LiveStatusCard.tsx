@@ -1,12 +1,14 @@
 import React from 'react';
-import { Mic, Activity, Cpu, Sparkles, Volume2 } from 'lucide-react';
-import { VoiceStatus } from '../types';
+import { Mic, Activity, Cpu, Sparkles, Volume2, Camera, Smile } from 'lucide-react';
+import { VisionState, VoiceStatus } from '../types';
 
 interface LiveStatusCardProps {
   voiceStatus: VoiceStatus;
   amplitude?: number;
   aiModel: string;
   ttsVoice: string;
+  cameraEnabled?: boolean;
+  visionState?: VisionState;
 }
 
 export const LiveStatusCard: React.FC<LiveStatusCardProps> = ({
@@ -14,6 +16,8 @@ export const LiveStatusCard: React.FC<LiveStatusCardProps> = ({
   amplitude = 0,
   aiModel,
   ttsVoice,
+  cameraEnabled = false,
+  visionState,
 }) => {
   const isListening = voiceStatus === 'listening';
   const isSpeaking = voiceStatus === 'speaking';
@@ -22,6 +26,12 @@ export const LiveStatusCard: React.FC<LiveStatusCardProps> = ({
 
   // Number of equalizer bars for the green waveform in screenshot
   const bars = [16, 28, 42, 60, 48, 80, 52, 95, 70, 85, 45, 65, 35, 50, 25, 18];
+
+  const visionStatusLabel = !cameraEnabled
+    ? 'Disabled'
+    : visionState?.available
+      ? 'Ready'
+      : 'Offline';
 
   return (
     <div
@@ -84,6 +94,93 @@ export const LiveStatusCard: React.FC<LiveStatusCardProps> = ({
           </div>
         </div>
 
+        {/* Camera */}
+        <div className="flex items-center justify-between py-2 text-slate-300">
+          <div className="flex items-center gap-2 text-slate-400">
+            <Camera className="w-3.5 h-3.5" />
+            <span>Camera</span>
+          </div>
+          <div className="flex items-center gap-1.5 font-medium">
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                cameraEnabled ? 'bg-emerald-400 shadow-[0_0_6px_#34d399]' : 'bg-slate-500'
+              }`}
+            />
+            <span className={cameraEnabled ? 'text-emerald-400' : 'text-slate-400'}>
+              {cameraEnabled ? 'ON' : 'OFF'}
+            </span>
+          </div>
+        </div>
+
+        {/* Local Python Vision Service */}
+        <div className="flex items-center justify-between py-2 text-slate-300">
+          <div className="flex items-center gap-2 text-slate-400">
+            <Cpu className="w-3.5 h-3.5" />
+            <span>Vision (Local Python)</span>
+          </div>
+          <div className="flex items-center gap-1.5 font-medium">
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                visionStatusLabel === 'Ready'
+                  ? 'bg-emerald-400 shadow-[0_0_6px_#34d399]'
+                  : visionStatusLabel === 'Offline'
+                    ? 'bg-rose-500'
+                    : 'bg-slate-500'
+              }`}
+            />
+            <span
+              className={
+                visionStatusLabel === 'Ready'
+                  ? 'text-emerald-400'
+                  : visionStatusLabel === 'Offline'
+                    ? 'text-rose-400'
+                    : 'text-slate-400'
+              }
+            >
+              {visionStatusLabel}
+            </span>
+          </div>
+        </div>
+
+        {/* Face & Expression (when camera active) */}
+        {cameraEnabled && (
+          <>
+            <div className="flex items-center justify-between py-2 text-slate-300">
+              <div className="flex items-center gap-2 text-slate-400">
+                <Smile className="w-3.5 h-3.5" />
+                <span>Face Detection</span>
+              </div>
+              <div className="flex items-center gap-1.5 font-medium">
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    visionState?.faceDetected
+                      ? 'bg-emerald-400 shadow-[0_0_6px_#34d399]'
+                      : 'bg-amber-500'
+                  }`}
+                />
+                <span className={visionState?.faceDetected ? 'text-emerald-400' : 'text-amber-300'}>
+                  {visionState?.faceDetected
+                    ? `Detected (${visionState.faceCount})`
+                    : 'Not detected'}
+                </span>
+              </div>
+            </div>
+
+            {visionState?.faceDetected && visionState.expression !== 'none' && (
+              <div className="flex items-center justify-between py-2 text-slate-300">
+                <div className="flex items-center gap-2 text-slate-400">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Expression</span>
+                </div>
+                <span className="text-slate-200 font-medium capitalize">
+                  {visionState.expression}
+                  {visionState.confidence > 0 && ` (${Math.round(visionState.confidence * 100)}%)`}
+                </span>
+              </div>
+            )}
+          </>
+        )}
+
         {/* Voice Activity */}
         <div className="flex items-center justify-between py-2 text-slate-300">
           <div className="flex items-center gap-2 text-slate-400">
@@ -104,18 +201,6 @@ export const LiveStatusCard: React.FC<LiveStatusCardProps> = ({
           </div>
         </div>
 
-        {/* Processing */}
-        <div className="flex items-center justify-between py-2 text-slate-300">
-          <div className="flex items-center gap-2 text-slate-400">
-            <Cpu className="w-3.5 h-3.5" />
-            <span>Processing</span>
-          </div>
-          <div className="flex items-center gap-1.5 font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />
-            <span className="text-emerald-400">Ready</span>
-          </div>
-        </div>
-
         {/* AI Model */}
         <div className="flex items-center justify-between py-2 text-slate-300">
           <div className="flex items-center gap-2 text-slate-400">
@@ -124,7 +209,7 @@ export const LiveStatusCard: React.FC<LiveStatusCardProps> = ({
           </div>
           <div className="flex items-center gap-1.5 font-medium">
             <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
-            <span className="text-slate-200">{aiModel}</span>
+            <span className="text-slate-200">{aiModel || 'Groq & Ollama'}</span>
           </div>
         </div>
 
@@ -140,3 +225,4 @@ export const LiveStatusCard: React.FC<LiveStatusCardProps> = ({
     </div>
   );
 };
+

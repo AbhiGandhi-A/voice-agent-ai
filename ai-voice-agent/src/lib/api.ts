@@ -76,12 +76,36 @@ export interface HealthResponse {
   uptimeSeconds: number;
   database: { connected: boolean; provider: string };
   ai: { available: boolean; provider: string; baseUrl: string; status: string; model?: string };
+  vision?: { available: boolean; provider: string; status: string; model: string; device: string };
   stt: { provider: string; status: string; details: string };
   tts: { provider: string; status: string; details: string };
   telephony: { configured: boolean; details: string };
 }
 
 export const fetchHealth = () => api.get<HealthResponse>('/health');
+
+// ─── Vision ────────────────────────────────────────────────────────────
+export interface VisionAnalysisResponse {
+  faceDetected: boolean;
+  faceCount: number;
+  expression: string;
+  confidence: number;
+  landmarksDetected: boolean;
+  timestamp: string;
+  processingTimeMs: number;
+  allExpressions?: Record<string, number>;
+  available?: boolean;
+}
+
+export const sendVisionFrame = (image: string, cameraActive = true) =>
+  api.post<VisionAnalysisResponse>('/vision/frame', { image, cameraActive });
+
+export const fetchVisionStatus = () =>
+  api.get<{ health: { status: string; available: boolean; model: string }; latestState: VisionAnalysisResponse }>('/vision/status');
+
+export const notifyCameraState = (cameraActive: boolean) =>
+  api.post<{ ok: boolean; cameraActive: boolean }>('/vision/camera-state', { cameraActive });
+
 
 // ─── Auth / profile ────────────────────────────────────────────────────
 export interface CurrentUser {

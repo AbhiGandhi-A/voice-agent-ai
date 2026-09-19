@@ -8,6 +8,7 @@ import {
   Conversation,
   Message,
   ServiceStatus,
+  VisionState,
   VoiceSettings,
 } from '../types';
 import {
@@ -28,6 +29,8 @@ import {
   HealthResponse,
   saveSettings,
   sendChat as apiSendChat,
+  sendVisionFrame as apiSendVisionFrame,
+  notifyCameraState as apiNotifyCameraState,
   RuntimeContext,
   startOutboundCall as apiStartOutboundCall,
   summarizeCall as apiSummarizeCall,
@@ -70,8 +73,17 @@ function serviceRow(name: string, online: boolean, details: string, latency = 'L
 function mapHealth(health: HealthResponse): ServiceStatus[] {
   const sttOk = health.stt && health.stt.status !== 'disconnected' && health.stt.status !== 'not_configured';
   const ttsOk = health.tts && health.tts.status !== 'disconnected' && health.tts.status !== 'not_configured';
+  const visionOk = Boolean(health.vision?.available);
 
   return [
+    serviceRow(
+      'Python Vision Service',
+      visionOk,
+      health.vision?.available
+        ? `Local ${health.vision.model || 'YuNet + HuggingFace FER'} (online)`
+        : 'Local Python vision service is offline (start vision_service)',
+      'Real-time'
+    ),
     serviceRow(
       'Ollama AI Engine',
       Boolean(health.ai?.available),
@@ -132,6 +144,7 @@ export interface AppData {
   services: ServiceStatus[];
   connectionStatus: 'Connected' | 'Connecting' | 'Disconnected' | 'Error';
   loading: boolean;
+  visionState: VisionState;
 
   // navigation
   selectConversation: (id: string) => void;
@@ -145,6 +158,10 @@ export interface AppData {
   handleSendMessage: (text: string, language?: string) => Promise<string | undefined>;
   appendAiReply: (text: string) => Promise<void>;
   getConversationIdForChat: () => string | null;
+
+  // vision
+  processVisionFrame: (frameBase64: string) => Promise<void>;
+  updateCameraState: (active: boolean) => Promise<void>;
 
   // telephony
   handleStartCall: (phoneNumber: string) => Promise<void>;
@@ -178,6 +195,15 @@ export function useAppData(enabled = true): AppData {
   const [services, setServices] = useState<ServiceStatus[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<'Connected' | 'Connecting' | 'Disconnected' | 'Error'>('Connecting');
   const [loading, setLoading] = useState(true);
+  const [visionState, setVisionState] = useState<VisionState>({
+    available: false,
+    cameraActive: false,
+    faceDetected: false,
+    faceCount: 0,
+    expression: 'none',
+    confidence: 0,
+    landmarksDetected: false,
+  });
   const liveCallIdRef = useRef<string | null>(null);
   const sessionConvIdRef = useRef<string>(CONV_PLACEHOLDER_ID);
 
@@ -524,6 +550,37 @@ export function useAppData(enabled = true): AppData {
     setContacts((prev) => prev.filter((c) => c.id !== id));
   }, []);
 
+  const processVisionFrame = useCallback(async (frameBase64: string) => {
+    try {
+      const res = await apiSendVisionFrame(frameBase64, true);
+      setVisionState((prev) => ({
+        ...prev,
+        available: res.available !== false,
+        cameraActive: true,
+        faceDetected: res.faceDetected,
+        faceCount: res.faceCount,
+        expression: res.expression,
+        confidence: res.confidence,
+        landmarksDetected: res.landmarksDetected,
+        timestamp: res.timestamp,
+        processingTimeMs: res.processingTimeMs,
+      }));
+    } catch {
+      // keep quiet if vision request fails
+    }
+  }, []);
+
+  const updateCameraState = useCallback(async (active: boolean) => {
+    setVisionState((prev) => ({
+      ...prev,
+      cameraActive: active,
+      faceDetected: active ? prev.faceDetected : false,
+      expression: active ? prev.expression : 'none',
+      confidence: active ? prev.confidence : 0,
+    }));
+    await apiNotifyCameraState(active).catch(() => undefined);
+  }, []);
+
   // ── settings ──────────────────────────────────────────────────────────
   const onSaveAiSettings = useCallback(async (s: AISettings) => {
     setAiSettings(s);
@@ -533,6 +590,12 @@ export function useAppData(enabled = true): AppData {
 
   const onSaveVoiceSettings = useCallback(async (s: VoiceSettings) => {
     setVoiceSettings(s);
+    if (!s.cameraEnabled) {
+      setVisionState((prev) => ({ ...prev, cameraActive: false, faceDetected: false, expression: 'none', confidence: 0 }));
+      void apiNotifyCameraState(false).catch(() => undefined);
+    } else {
+      void apiNotifyCameraState(true).catch(() => undefined);
+    }
     const current = await getPersistedSettings();
     await saveSettings({ ...current, voice: s });
   }, []);
@@ -548,6 +611,12 @@ export function useAppData(enabled = true): AppData {
     try {
       const health = await fetchHealth();
       setServices(mapHealth(health));
+      if (health.vision) {
+        setVisionState((prev) => ({
+          ...prev,
+          available: Boolean(health.vision?.available),
+        }));
+      }
       setConnectionStatus('Connected');
     } catch {
       setConnectionStatus('Disconnected');
@@ -567,6 +636,7 @@ export function useAppData(enabled = true): AppData {
     services,
     connectionStatus,
     loading,
+    visionState,
     selectConversation,
     deleteConversation,
     resetChat,
@@ -574,6 +644,8 @@ export function useAppData(enabled = true): AppData {
     handleSendMessage,
     appendAiReply,
     getConversationIdForChat: () => (sessionConvIdRef.current === CONV_PLACEHOLDER_ID ? null : sessionConvIdRef.current),
+    processVisionFrame,
+    updateCameraState,
     handleStartCall,
     handleEndCall,
     handleLiveCallSendMessage,

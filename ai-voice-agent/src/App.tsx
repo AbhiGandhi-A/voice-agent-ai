@@ -26,6 +26,8 @@ import { useAppData } from './hooks/useAppData';
 import { useAuth } from './hooks/useAuth';
 import { AssistantLanguage, detectExplicitLanguageCommand, detectLanguageFromText, languageSettingLabel, normalizeAssistantLanguage } from './lib/language';
 
+import { captureVideoFrame, stopMediaStream } from './lib/camera';
+
 type ConnectionStatus = 'Connected' | 'Connecting' | 'Disconnected' | 'Error';
 
 async function getSupabaseToken(): Promise<string | null> {
@@ -55,12 +57,71 @@ export default function App() {
   const [activeLanguage, setActiveLanguage] = useState<AssistantLanguage>('en');
   const activeLanguageRef = useRef<AssistantLanguage>('en');
 
+  // Camera & Vision Stream Management
+  const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+
   // Live-call UI override so the original navigation behavior is preserved.
   const [activeCallUi, setActiveCallUi] = useState<Call | null>(null);
 
   const voiceManagerRef = useRef<VoiceSessionManager | null>(null);
   const dataRef = useRef(data);
   dataRef.current = data;
+
+  // ── Camera and Vision Sampling Loop (1 FPS when enabled) ─────────────
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout | null = null;
+    let streamCancelled = false;
+
+    if (data.voiceSettings.cameraEnabled) {
+      if (navigator.mediaDevices?.getUserMedia) {
+        navigator.mediaDevices
+          .getUserMedia({ video: true, audio: false })
+          .then((stream) => {
+            if (streamCancelled) {
+              stopMediaStream(stream);
+              return;
+            }
+            stopMediaStream(cameraStreamRef.current);
+            cameraStreamRef.current = stream;
+            if (cameraVideoRef.current) {
+              cameraVideoRef.current.srcObject = stream;
+              cameraVideoRef.current.play().catch(() => undefined);
+            }
+            void dataRef.current.updateCameraState(true);
+
+            // Start 1 FPS sampling if face analysis is enabled
+            if (data.voiceSettings.faceAnalysisEnabled) {
+              intervalId = setInterval(() => {
+                if (!cameraVideoRef.current || !dataRef.current.voiceSettings.cameraEnabled || !dataRef.current.voiceSettings.faceAnalysisEnabled) {
+                  return;
+                }
+                const frame = captureVideoFrame(cameraVideoRef.current, 320, 240, 0.65);
+                if (frame) {
+                  void dataRef.current.processVisionFrame(frame);
+                }
+              }, 1000);
+            }
+          })
+          .catch((err) => {
+            console.warn('[CAMERA] getUserMedia failed:', err);
+            void dataRef.current.updateCameraState(false);
+          });
+      }
+    } else {
+      stopMediaStream(cameraStreamRef.current);
+      cameraStreamRef.current = null;
+      if (cameraVideoRef.current) {
+        cameraVideoRef.current.srcObject = null;
+      }
+      void dataRef.current.updateCameraState(false);
+    }
+
+    return () => {
+      streamCancelled = true;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [data.voiceSettings.cameraEnabled, data.voiceSettings.faceAnalysisEnabled]);
 
   // Reflect backend-initiated live calls in the UI.
   useEffect(() => {
@@ -315,6 +376,8 @@ export default function App() {
                         amplitude={amplitude}
                         aiModel={data.aiSettings.model}
                         ttsVoice={data.voiceSettings.ttsVoice}
+                        cameraEnabled={data.voiceSettings.cameraEnabled}
+                        visionState={data.visionState}
                       />
 
                       <QuickSettingsCard
@@ -422,6 +485,16 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {/* Hidden video element for local webcam frame capture & vision analysis */}
+      <video
+        ref={cameraVideoRef}
+        autoPlay
+        muted
+        playsInline
+        className="hidden pointer-events-none"
+        aria-hidden="true"
+      />
     </div>
   );
 }

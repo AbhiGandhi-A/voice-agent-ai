@@ -35,6 +35,7 @@ export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
   autoDetectVad: true,
   autoWake: false,
   cameraEnabled: false,
+  faceAnalysisEnabled: true,
 };
 
 export const DEFAULT_CALL_SETTINGS: CallSettings = {

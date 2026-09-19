@@ -22,6 +22,13 @@ export interface WebSearchResult {
 
 const SEARCH_INTENT = /\b(find|search|look up|lookup|research|google|web search|search the web|retrieve|latest|recent|news|current price|current ceo|best .{0,30}(?:courses|hotels|restaurants|products)|what happened today)\b/i;
 const CURRENT_TIME_INTENT = /\b(what(?:'s| is)?\s+(?:the\s+)?(?:date|day|time)|which date|what day|what time|today(?:'s| is the)? date|tomorrow(?:'s| is the)? date|yesterday(?:'s| was the)? date)\b|(?:आज|તારીખ|દિવસ|સમય).*(?:कौन|क्या|છે|શું|આજે|today|date|day|time)/i;
+const VISION_INTENT = /\b(can you see (?:me|my face)|do you see (?:me|my face)|see my (?:face|expression)|how do i look|what is my (?:facial )?expression|what emotion (?:am i|is my)|am i smiling|am i happy|am i sad|look at me|check my (?:face|expression))\b|(?:देख|દેખ|જોઈ|હાવભાવ|मुस्कुरा|हस|expression|face).*(?:सकते|શકો|છો|हो|है|શું|क्या|चेहरा|ચહેરો)/i;
+
+export function selectRealtimeTool(message: string): 'current_time' | 'web_search' | 'vision' | null {
+  if (VISION_INTENT.test(message) && !SEARCH_INTENT.test(message)) return 'vision';
+  if (CURRENT_TIME_INTENT.test(message) && !SEARCH_INTENT.test(message)) return 'current_time';
+  return SEARCH_INTENT.test(message) ? 'web_search' : null;
+}
 
 export function getCurrentTime(timezone?: string, now = new Date()): CurrentTimeResult {
   const resolvedTimezone = timezone && isValidTimezone(timezone)
@@ -44,11 +51,6 @@ export function getCurrentTime(timezone?: string, now = new Date()): CurrentTime
     dayOfWeek,
     timezone: resolvedTimezone,
   };
-}
-
-export function selectRealtimeTool(message: string): 'current_time' | 'web_search' | null {
-  if (CURRENT_TIME_INTENT.test(message) && !SEARCH_INTENT.test(message)) return 'current_time';
-  return SEARCH_INTENT.test(message) ? 'web_search' : null;
 }
 
 export function parseMemoryCommand(message: string): { action: 'remember' | 'forget'; text: string } | null {

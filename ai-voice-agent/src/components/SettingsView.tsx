@@ -323,7 +323,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <Camera className="w-4 h-4 text-slate-400" />
                   <div>
                     <h4 className="font-semibold text-white">Camera / Webcam</h4>
-                    <p className="text-[11px] text-slate-400">Local browser preview only. No frames are uploaded.</p>
+                    <p className="text-[11px] text-slate-400">Local browser stream. Enables vision features.</p>
                   </div>
                 </div>
                 <input
@@ -335,6 +335,26 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 />
               </div>
 
+              <div className="flex items-center justify-between p-4 rounded-xl bg-[#080d19] border border-slate-800">
+                <div className="flex items-center gap-3">
+                  <Sparkles className="w-4 h-4 text-slate-400" />
+                  <div>
+                    <h4 className="font-semibold text-white">Face Expression Analysis</h4>
+                    <p className="text-[11px] text-slate-400">Local CPU facial emotion detection via Python service.</p>
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={voice.faceAnalysisEnabled && cameraEnabled}
+                  disabled={!cameraEnabled}
+                  onChange={(event) => setVoice({ ...voice, faceAnalysisEnabled: event.target.checked })}
+                  className="w-4 h-4 accent-indigo-600 rounded cursor-pointer disabled:opacity-40"
+                  aria-label="Enable Face Expression Analysis"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="flex items-center justify-between p-4 rounded-xl bg-[#080d19] border border-slate-800">
                 <div>
                   <h4 className="font-semibold text-white">Auto Wake</h4>

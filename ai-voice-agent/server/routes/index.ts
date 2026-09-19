@@ -11,6 +11,7 @@ import { settingsRouter } from './settings.routes';
 import { telephonyRouter } from './telephony.routes';
 import { webhookRouter } from './telephony-webhook.routes';
 import { memoriesRouter } from './memories.routes';
+import { visionRouter } from './vision.routes';
 
 export function buildApiRouter(): Router {
   const router = Router();
@@ -20,6 +21,7 @@ export function buildApiRouter(): Router {
   router.put('/auth/profile', requireAuth, authRouter.updateProfile);
 
   router.use('/ai', requireAuth, aiRouter);
+  router.use('/vision', requireAuth, visionRouter);
   router.use('/contacts', requireAuth, contactsRouter);
   router.use('/conversations', requireAuth, conversationsRouter);
   router.use('/calls', requireAuth, callsRouter);

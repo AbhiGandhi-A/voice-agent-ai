@@ -42,3 +42,11 @@ temp/
 
 # Optional: local generated files
 *.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/

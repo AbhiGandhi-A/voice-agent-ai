@@ -73,4 +73,67 @@ describe('AI provider router', () => {
     expect(ollama.generate.mock.calls[0][0][0].content).toContain('ACTIVE RESPONSE LANGUAGE: Hindi');
     expect(ollama.generate.mock.calls[0][0][0].content).toContain('https://example.com/news');
   });
+
+  it('routes "Can you see me?" to vision and returns camera-off message when camera is inactive', async () => {
+    const groq = { generate: vi.fn() };
+    const search = vi.fn();
+    const ollama = { generate: vi.fn() };
+    const vision = {
+      getLatestState: vi.fn().mockReturnValue({ cameraActive: false, faceDetected: false, expression: 'none', confidence: 0, serviceAvailable: true }),
+      checkHealth: vi.fn().mockResolvedValue({ status: 'online', available: true, provider: 'local-python', model: 'fer', device: 'cpu' }),
+    };
+
+    const result = await routeAiRequest(input('Can you see me?'), { groq, search, ollama, vision });
+
+    expect(result.source).toBe('vision');
+    expect(result.text).toContain('camera is currently turned off');
+    expect(groq.generate).not.toHaveBeenCalled();
+  });
+
+  it('routes facial expression questions and returns detected expression with confidence in English', async () => {
+    const groq = { generate: vi.fn() };
+    const search = vi.fn();
+    const ollama = { generate: vi.fn() };
+    const vision = {
+      getLatestState: vi.fn().mockReturnValue({ cameraActive: true, faceDetected: true, faceCount: 1, expression: 'happy', confidence: 0.91, serviceAvailable: true }),
+      checkHealth: vi.fn().mockResolvedValue({ status: 'online', available: true, provider: 'local-python', model: 'fer', device: 'cpu' }),
+    };
+
+    const result = await routeAiRequest(input('What is my expression?'), { groq, search, ollama, vision });
+
+    expect(result.source).toBe('vision');
+    expect(result.text).toContain('happy');
+    expect(result.text).toContain('91% confidence');
+  });
+
+  it('handles Gujarati vision questions with Gujarati response and expression', async () => {
+    const groq = { generate: vi.fn() };
+    const search = vi.fn();
+    const ollama = { generate: vi.fn() };
+    const vision = {
+      getLatestState: vi.fn().mockReturnValue({ cameraActive: true, faceDetected: true, faceCount: 1, expression: 'happy', confidence: 0.88, serviceAvailable: true }),
+      checkHealth: vi.fn().mockResolvedValue({ status: 'online', available: true, provider: 'local-python', model: 'fer', device: 'cpu' }),
+    };
+
+    const result = await routeAiRequest(input('મારો expression શું છે?', 'gu'), { groq, search, ollama, vision });
+
+    expect(result.source).toBe('vision');
+    expect(result.text).toContain('ચહેરાના હાવભાવ');
+    expect(result.text).toContain('happy');
+  });
+
+  it('handles Hindi vision questions with Hindi response when no face is detected', async () => {
+    const groq = { generate: vi.fn() };
+    const search = vi.fn();
+    const ollama = { generate: vi.fn() };
+    const vision = {
+      getLatestState: vi.fn().mockReturnValue({ cameraActive: true, faceDetected: false, faceCount: 0, expression: 'none', confidence: 0, serviceAvailable: true }),
+      checkHealth: vi.fn().mockResolvedValue({ status: 'online', available: true, provider: 'local-python', model: 'fer', device: 'cpu' }),
+    };
+
+    const result = await routeAiRequest(input('क्या तुम मुझे देख सकते हो?', 'hi'), { groq, search, ollama, vision });
+
+    expect(result.source).toBe('vision');
+    expect(result.text).toContain('चेहरा दिखाई नहीं दे रहा है');
+  });
 });

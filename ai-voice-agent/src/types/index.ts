@@ -101,6 +101,19 @@ export interface VoiceSettings {
   autoDetectVad: boolean;
   autoWake: boolean;
   cameraEnabled: boolean;
+  faceAnalysisEnabled: boolean;
+}
+
+export interface VisionState {
+  available: boolean;
+  cameraActive: boolean;
+  faceDetected: boolean;
+  faceCount: number;
+  expression: string;
+  confidence: number;
+  landmarksDetected: boolean;
+  timestamp?: string;
+  processingTimeMs?: number;
 }
 
 export interface CallSettings {
@@ -134,3 +147,4 @@ export interface ServiceStatus {
   latency: string;
   details: string;
 }
+

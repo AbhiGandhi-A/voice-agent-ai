@@ -4,8 +4,9 @@ import { buildLanguageSystemInstruction, normalizeAssistantLanguage } from '../.
 import { getCurrentTime, selectRealtimeTool, webSearch, RuntimeContext, WebSearchResult } from './realtime-tools';
 import { groqService } from './groq.service';
 import { ollamaService } from './ollama.service';
+import { visionService } from '../vision/vision.service';
 
-export type AiIntent = 'normal' | 'search' | 'current_time';
+export type AiIntent = 'normal' | 'search' | 'current_time' | 'vision';
 
 export interface AiRouteInput {
   message: string;
@@ -21,32 +22,41 @@ export interface AiRouteResult {
   text: string;
   model: string;
   latencyMs: number;
-  source: 'groq' | 'search_ollama' | 'current_time';
+  source: 'groq' | 'search_ollama' | 'current_time' | 'vision';
 }
 
 export interface AiRouterDependencies {
   groq: Pick<typeof groqService, 'generate'>;
   ollama: Pick<typeof ollamaService, 'generate'>;
   search: typeof webSearch;
+  vision: Pick<typeof visionService, 'getLatestState' | 'checkHealth'>;
 }
 
 const defaultDependencies: AiRouterDependencies = {
   groq: groqService,
   ollama: ollamaService,
   search: webSearch,
+  vision: visionService,
 };
 
 export function classifyAiIntent(message: string): AiIntent {
   const realtime = selectRealtimeTool(message);
+  if (realtime === 'vision') return 'vision';
   if (realtime === 'current_time') return 'current_time';
   if (realtime === 'web_search') return 'search';
   return 'normal';
 }
 
-export async function routeAiRequest(input: AiRouteInput, dependencies: AiRouterDependencies = defaultDependencies): Promise<AiRouteResult> {
+export async function routeAiRequest(input: AiRouteInput, dependencies: Partial<AiRouterDependencies> = defaultDependencies): Promise<AiRouteResult> {
+  const deps: AiRouterDependencies = { ...defaultDependencies, ...dependencies };
   logger.info('[AI ROUTER] request received', { messageLength: input.message.length });
   const intent = classifyAiIntent(input.message);
   logger.info('[AI ROUTER] intent = ' + (intent === 'current_time' ? 'datetime' : intent));
+  if (intent === 'vision') {
+    logger.info('[AI ROUTER] provider = local-python-vision');
+    logger.info('[AI ROUTER] executing provider = local-python-vision');
+    return visionResponse(input, deps);
+  }
   if (intent === 'current_time') {
     logger.info('[AI ROUTER] provider = runtime-clock');
     logger.info('[AI ROUTER] executing provider = runtime-clock');
@@ -54,12 +64,12 @@ export async function routeAiRequest(input: AiRouteInput, dependencies: AiRouter
   }
   if (intent === 'search') {
     logger.info('[AI ROUTER] provider = web-search -> ollama-analysis');
-    return searchWithOllama(input, dependencies);
+    return searchWithOllama(input, deps);
   }
 
   logger.info('[AI ROUTER] provider = groq');
   logger.info('[AI ROUTER] executing provider = groq');
-  const result = await dependencies.groq.generate(
+  const result = await deps.groq.generate(
     [
       { role: 'system', content: input.systemPrompt },
       ...input.history,
@@ -137,3 +147,64 @@ function currentTimeResponse(input: AiRouteInput): AiRouteResult {
         : `Today is ${current.dayOfWeek}, ${current.date}, and the time is ${current.time}.`;
   return { text, model: 'runtime-clock', latencyMs: Date.now() - startedAt, source: 'current_time' };
 }
+
+async function visionResponse(input: AiRouteInput, dependencies: AiRouterDependencies): Promise<AiRouteResult> {
+  const startedAt = Date.now();
+  const visionState = dependencies.vision.getLatestState();
+  const health = await dependencies.vision.checkHealth().catch(() => ({ available: false, status: 'offline' as const, provider: 'local-python', model: '', device: 'cpu' }));
+  const language = normalizeAssistantLanguage(input.language);
+
+  // 1. Camera is OFF
+  if (!visionState.cameraActive) {
+    const text = language === 'hi'
+      ? 'अभी कैमरा बंद है, इसलिए मैं आपको नहीं देख सकता। विज़न चालू करने के लिए सेटिंग्स में कैमरा ऑन करें।'
+      : language === 'gu'
+        ? 'હમણાં કેમેરો બંધ છે, તેથી હું તમને જોઈ શકતો નથી. વિઝન શરૂ કરવા માટે સેટિંગ્સમાં કેમેરો ચાલુ કરો.'
+        : language === 'hinglish'
+          ? 'Abhi camera band hai, isliye main aapko nahi dekh sakta. Vision enable karne ke liye Settings mein camera on karein.'
+          : 'The camera is currently turned off, so I cannot see you right now. Please enable the camera in Settings to turn on vision.';
+
+    return { text, model: 'local-vision-router', latencyMs: Date.now() - startedAt, source: 'vision' };
+  }
+
+  // 2. Vision Service is Offline
+  if (!health.available && !visionState.serviceAvailable) {
+    const text = language === 'hi'
+      ? 'कैमरा चालू है, लेकिन लोकल विज़न सेवा अभी उपलब्ध नहीं है।'
+      : language === 'gu'
+        ? 'કેમેરો ચાલુ છે, પરંતુ લોકલ વિઝન સેવા અત્યારે ઉપલબ્ધ નથી.'
+        : language === 'hinglish'
+          ? 'Camera on hai, lekin local vision service abhi offline hai.'
+          : 'The camera is on, but the local vision analysis service is currently offline.';
+
+    return { text, model: 'local-vision-router', latencyMs: Date.now() - startedAt, source: 'vision' };
+  }
+
+  // 3. Camera is ON, but no face detected
+  if (!visionState.faceDetected || visionState.faceCount === 0) {
+    const text = language === 'hi'
+      ? 'कैमरा चालू है, लेकिन मुझे अभी फ्रेम में कोई चेहरा दिखाई नहीं दे रहा है।'
+      : language === 'gu'
+        ? 'કેમેરો ચાલુ છે, પરંતુ મને અત્યારે ફ્રેમમાં કોઈ ચહેરો દેખાતો નથી.'
+        : language === 'hinglish'
+          ? 'Camera on hai, lekin mujhe frame mein koi face detect nahi ho raha hai.'
+          : 'The camera is on, but I do not detect any face in the frame right now.';
+
+    return { text, model: 'local-vision-router', latencyMs: Date.now() - startedAt, source: 'vision' };
+  }
+
+  // 4. Camera is ON and face is detected
+  const expr = visionState.expression || 'neutral';
+  const confPct = Math.round((visionState.confidence || 0) * 100);
+
+  const text = language === 'hi'
+    ? `हाँ, कैमरा चालू है और मैं आपको देख सकता हूँ। आपके चेहरे के भावों के आधार पर आपका expression ${expr}${confPct > 0 ? ` (${confPct}% विश्वास)` : ''} जैसा detect हुआ है।`
+    : language === 'gu'
+      ? `હા, કેમેરો ચાલુ છે અને હું તમને જોઈ શકું છું. તમારા ચહેરાના હાવભાવના આધારે તમારો expression ${expr}${confPct > 0 ? ` (${confPct}% વિશ્વાસ)` : ''} જેવો detect થયો છે.`
+      : language === 'hinglish'
+        ? `Haan, camera on hai aur main aapko dekh sakta hoon. Aapke chehre ke haav-bhaav ke mutabiq aapka expression ${expr}${confPct > 0 ? ` (${confPct}% confidence)` : ''} detect hua hai.`
+        : `Yes, the camera is on and I can see you. Based on the vision model, your facial expression is detected as ${expr}${confPct > 0 ? ` (${confPct}% confidence)` : ''}.`;
+
+  return { text, model: 'local-python-vision', latencyMs: Date.now() - startedAt, source: 'vision' };
+}
+

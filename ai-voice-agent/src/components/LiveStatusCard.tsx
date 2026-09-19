@@ -36,12 +36,12 @@ export const LiveStatusCard: React.FC<LiveStatusCardProps> = ({
   return (
     <div
       id="live-status-card"
-      className="rounded-2xl bg-[#0c1222]/80 border border-slate-800/80 p-4 backdrop-blur-xl shadow-lg flex flex-col gap-3.5"
+      className="rounded-2xl bg-[#0c1222]/80 border border-slate-800/80 p-3.5 backdrop-blur-xl shadow-lg flex flex-col gap-2.5"
     >
       <h3 className="text-sm font-semibold text-white tracking-tight">Live Status</h3>
 
       {/* Primary Status Banner matching screenshot */}
-      <div className="rounded-xl bg-[#090f1d] border border-slate-800/90 p-3.5 flex flex-col gap-2.5">
+      <div className="rounded-xl bg-[#090f1d] border border-slate-800/90 p-2.5 flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span
@@ -61,7 +61,7 @@ export const LiveStatusCard: React.FC<LiveStatusCardProps> = ({
         </div>
 
         {/* Animated Green Waveform Equalizer */}
-        <div className="h-6 flex items-center justify-center gap-1 px-1 overflow-hidden">
+        <div className="h-5 flex items-center justify-center gap-1 px-1 overflow-hidden">
           {bars.map((height, idx) => {
             const dynamicScale = isActive
               ? Math.max(0.2, (height / 100) * (0.4 + amplitude * 1.8))
@@ -71,7 +71,7 @@ export const LiveStatusCard: React.FC<LiveStatusCardProps> = ({
                 key={idx}
                 className="w-1 bg-gradient-to-t from-emerald-500 to-emerald-300 rounded-full transition-all duration-150"
                 style={{
-                  height: `${Math.min(24, Math.max(4, dynamicScale * 24))}px`,
+                  height: `${Math.min(20, Math.max(3, dynamicScale * 20))}px`,
                   opacity: isActive ? 0.9 : 0.25,
                 }}
               />

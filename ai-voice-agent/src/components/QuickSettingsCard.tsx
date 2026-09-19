@@ -26,7 +26,7 @@ export const QuickSettingsCard: React.FC<QuickSettingsCardProps> = ({
   return (
     <div
       id="quick-settings-card"
-      className="rounded-2xl bg-[#0c1222]/80 border border-slate-800/80 p-4 backdrop-blur-xl shadow-lg flex flex-col gap-3.5"
+      className="rounded-2xl bg-[#0c1222]/80 border border-slate-800/80 p-3.5 backdrop-blur-xl shadow-lg flex flex-col gap-2.5"
     >
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-white tracking-tight">Quick Settings</h3>
@@ -39,7 +39,7 @@ export const QuickSettingsCard: React.FC<QuickSettingsCardProps> = ({
         </button>
       </div>
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2.5">
         {/* AI Model */}
         <div className="flex flex-col gap-1">
           <label className="text-[11px] text-slate-400 font-medium">AI Model</label>

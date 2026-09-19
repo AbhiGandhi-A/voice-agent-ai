@@ -314,7 +314,7 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <TopHeader
           connectionStatus={connectionStatus}
           onChangeConnectionStatus={setManualStatus}
@@ -335,10 +335,10 @@ export default function App() {
             <>
               {/* TAB: Home (The Main Voice Dashboard) */}
               {currentTab === 'home' && (
-                <div className="p-4 sm:p-6 max-w-[1600px] mx-auto w-full">
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                <div className="p-3 sm:p-4 lg:p-5 max-w-[1600px] mx-auto w-full">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-5 items-start">
                     {/* Left 2 Cols: Hero Voice Card + Live Transcript + Input */}
-                    <div className="lg:col-span-2 flex flex-col gap-6">
+                    <div className="lg:col-span-2 flex flex-col gap-3.5">
                       {/* Voice Hero Card */}
                       <VoiceHeroCard
                         status={voiceStatus}
@@ -351,7 +351,7 @@ export default function App() {
                       />
 
                       {/* Live Conversation Transcript */}
-                      <div className="flex flex-col gap-3">
+                      <div className="flex flex-col gap-2">
                         <LiveTranscript
                           messages={data.currentConversation.messages}
                           onPlayMessage={handlePlayMessage}
@@ -370,7 +370,7 @@ export default function App() {
                     </div>
 
                     {/* Right 1 Col: Live Status + Quick Settings + Recent Conversations */}
-                    <div className="flex flex-col gap-5">
+                    <div className="flex flex-col gap-3.5">
                       <LiveStatusCard
                         voiceStatus={voiceStatus}
                         amplitude={amplitude}

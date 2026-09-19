@@ -23,7 +23,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   return (
-    <div className="flex flex-col gap-2 mt-4">
+    <div className="flex flex-col gap-1.5 mt-2">
       <form
         onSubmit={handleSubmit}
         className="relative flex items-center gap-2 p-1.5 rounded-2xl bg-[#0c1222]/90 border border-slate-800/90 shadow-[0_4px_24px_rgba(0,0,0,0.3)] backdrop-blur-xl focus-within:border-indigo-500/80 transition-all"

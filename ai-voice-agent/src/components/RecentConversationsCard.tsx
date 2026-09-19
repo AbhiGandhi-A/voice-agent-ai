@@ -16,7 +16,7 @@ export const RecentConversationsCard: React.FC<RecentConversationsCardProps> = (
   return (
     <div
       id="recent-conversations-card"
-      className="rounded-2xl bg-[#0c1222]/80 border border-slate-800/80 p-4 backdrop-blur-xl shadow-lg flex flex-col gap-3.5"
+      className="rounded-2xl bg-[#0c1222]/80 border border-slate-800/80 p-3.5 backdrop-blur-xl shadow-lg flex flex-col gap-2.5"
     >
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-white tracking-tight">Recent Conversations</h3>
@@ -29,9 +29,9 @@ export const RecentConversationsCard: React.FC<RecentConversationsCardProps> = (
         </button>
       </div>
 
-      <div className="flex flex-col gap-1 divide-y divide-slate-800/50">
+      <div className="flex flex-col gap-0.5 divide-y divide-slate-800/50">
         {conversations.length === 0 ? (
-          <div className="py-6 px-3 text-center flex flex-col items-center justify-center gap-1.5 text-slate-500">
+          <div className="py-4 px-3 text-center flex flex-col items-center justify-center gap-1.5 text-slate-500">
             <MessageSquare className="w-5 h-5 text-slate-600" />
             <span className="text-xs font-medium text-slate-400">No conversations yet</span>
             <span className="text-[11px] text-slate-500">Speak or send a message to start</span>
@@ -42,7 +42,7 @@ export const RecentConversationsCard: React.FC<RecentConversationsCardProps> = (
               key={conv.id}
               id={`recent-item-${conv.id}`}
               onClick={() => onSelectConversation(conv)}
-              className="flex items-center justify-between py-2.5 px-2 rounded-xl hover:bg-slate-800/40 transition-colors cursor-pointer group"
+              className="flex items-center justify-between py-2 px-2 rounded-xl hover:bg-slate-800/40 transition-colors cursor-pointer group"
             >
               <div className="flex items-center gap-2.5">
                 <div className="w-7 h-7 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400 group-hover:text-indigo-400 group-hover:border-indigo-500/40 transition-colors shrink-0">

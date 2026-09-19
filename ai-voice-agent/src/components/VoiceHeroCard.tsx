@@ -74,7 +74,7 @@ export const VoiceHeroCard: React.FC<VoiceHeroCardProps> = ({
   return (
     <div
       id="voice-hero-card"
-      className="relative rounded-2xl bg-[#0c1222]/80 border border-slate-800/80 p-6 md:p-8 backdrop-blur-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.4)] flex flex-col items-center justify-center text-center select-none min-h-[360px]"
+      className="relative rounded-2xl bg-[#0c1222]/80 border border-slate-800/80 p-4 sm:p-5 backdrop-blur-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.4)] flex flex-col items-center justify-center text-center select-none min-h-[250px] sm:min-h-[270px]"
     >
       {/* Background Neon Flowing Wave SVG graphic matching reference */}
       <div className="absolute inset-0 pointer-events-none opacity-40 overflow-hidden flex items-center justify-center">
@@ -122,21 +122,21 @@ export const VoiceHeroCard: React.FC<VoiceHeroCardProps> = ({
       </div>
 
       {/* Header text */}
-      <div className="relative z-10 flex flex-col items-center mb-6">
-        <h2 className="text-2xl sm:text-[28px] font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-200 to-cyan-300">
+      <div className="relative z-10 flex flex-col items-center mb-2 sm:mb-3">
+        <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-200 to-cyan-300">
           AI Voice Agent
         </h2>
-        <p className="text-slate-400 text-xs sm:text-sm mt-1 font-normal">
+        <p className="text-slate-400 text-xs sm:text-[13px] mt-0.5 font-normal">
           Have a natural conversation with your AI assistant
         </p>
       </div>
 
       {/* Central Glowing Microphone */}
-      <div className="relative z-10 my-4 flex items-center justify-center">
+      <div className="relative z-10 my-2 flex items-center justify-center">
         {/* Outer pulsating aura */}
         {isSessionActive && (
           <div
-            className={`absolute w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-gradient-to-tr ${statusInfo.glowColor} blur-2xl transition-all duration-300 pointer-events-none`}
+            className={`absolute w-28 h-28 sm:w-36 sm:h-36 rounded-full bg-gradient-to-tr ${statusInfo.glowColor} blur-2xl transition-all duration-300 pointer-events-none`}
             style={{
               transform: `scale(${1 + amplitude * 0.4})`,
             }}
@@ -145,7 +145,7 @@ export const VoiceHeroCard: React.FC<VoiceHeroCardProps> = ({
 
         {/* Concentric rings */}
         <div
-          className={`relative w-28 h-28 sm:w-32 sm:h-32 rounded-full border-2 ${statusInfo.ringColor} p-1.5 flex items-center justify-center transition-all duration-300`}
+          className={`relative w-20 h-20 sm:w-24 sm:h-24 rounded-full border-2 ${statusInfo.ringColor} p-1 flex items-center justify-center transition-all duration-300`}
         >
           {/* Subtle inner animated ring */}
           {status === 'listening' && (
@@ -159,71 +159,71 @@ export const VoiceHeroCard: React.FC<VoiceHeroCardProps> = ({
             className="w-full h-full rounded-full bg-gradient-to-b from-[#111a36] to-[#0a0f24] hover:from-[#172348] hover:to-[#0f1738] flex items-center justify-center text-white transition-transform active:scale-95 cursor-pointer shadow-inner relative group"
           >
             {status === 'thinking' ? (
-              <Sparkles className="w-10 h-10 text-purple-300 animate-spin" />
+              <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-purple-300 animate-spin" />
             ) : isMuted ? (
-              <MicOff className="w-10 h-10 text-rose-400" />
+              <MicOff className="w-7 h-7 sm:w-8 sm:h-8 text-rose-400" />
             ) : (
-              <Mic className="w-10 h-10 text-cyan-300 group-hover:text-white transition-colors" />
+              <Mic className="w-7 h-7 sm:w-8 sm:h-8 text-cyan-300 group-hover:text-white transition-colors" />
             )}
           </button>
         </div>
       </div>
 
       {/* Status label & Subtext */}
-      <div className="relative z-10 flex flex-col items-center mt-2">
-        <span className="text-lg sm:text-xl font-bold text-white tracking-tight">
+      <div className="relative z-10 flex flex-col items-center mt-1">
+        <span className="text-base sm:text-lg font-bold text-white tracking-tight">
           {statusInfo.title}
         </span>
-        <span className="text-xs sm:text-[13px] text-slate-400 mt-0.5">
+        <span className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
           {statusInfo.sub}
         </span>
       </div>
 
       {/* Control Buttons: Mute, Stop, Settings */}
-      <div className="relative z-10 flex items-center justify-center gap-6 sm:gap-8 mt-7">
+      <div className="relative z-10 flex items-center justify-center gap-5 sm:gap-6 mt-4">
         {/* Mute Button */}
-        <div className="flex flex-col items-center gap-1.5">
+        <div className="flex flex-col items-center gap-1">
           <button
             id="control-mute-btn"
             onClick={onToggleMute}
             aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'}
-            className={`w-11 h-11 rounded-full border flex items-center justify-center transition-all cursor-pointer ${
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full border flex items-center justify-center transition-all cursor-pointer ${
               isMuted
                 ? 'bg-rose-950/60 border-rose-600/80 text-rose-300 shadow-[0_0_15px_rgba(244,63,94,0.3)]'
                 : 'bg-slate-900/80 border-slate-700/80 text-slate-300 hover:text-white hover:border-slate-600'
             }`}
           >
-            {isMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            {isMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
           </button>
-          <span className="text-[11px] text-slate-400 font-medium">
+          <span className="text-[10px] sm:text-[11px] text-slate-400 font-medium">
             {isMuted ? 'Unmute' : 'Mute'}
           </span>
         </div>
 
         {/* Stop Button (Prominent Red) */}
-        <div className="flex flex-col items-center gap-1.5">
+        <div className="flex flex-col items-center gap-1">
           <button
             id="control-stop-btn"
             onClick={onStop}
             aria-label="Stop conversation"
-            className="w-12 h-12 rounded-full bg-rose-600 hover:bg-rose-500 border-2 border-rose-400/80 text-white flex items-center justify-center shadow-[0_0_22px_rgba(244,63,94,0.55)] transition-all cursor-pointer active:scale-95"
+            className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-rose-600 hover:bg-rose-500 border-2 border-rose-400/80 text-white flex items-center justify-center shadow-[0_0_22px_rgba(244,63,94,0.55)] transition-all cursor-pointer active:scale-95"
           >
-            <Square className="w-4 h-4 fill-white" />
+            <Square className="w-3.5 h-3.5 fill-white" />
           </button>
-          <span className="text-[11px] text-slate-400 font-medium">Stop</span>
+          <span className="text-[10px] sm:text-[11px] text-slate-400 font-medium">Stop</span>
         </div>
 
         {/* Settings Button */}
-        <div className="flex flex-col items-center gap-1.5">
+        <div className="flex flex-col items-center gap-1">
           <button
             id="control-settings-btn"
             onClick={onOpenSettings}
             aria-label="Open voice settings"
-            className="w-11 h-11 rounded-full bg-slate-900/80 border border-slate-700/80 text-slate-300 hover:text-white hover:border-slate-600 flex items-center justify-center transition-all cursor-pointer"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-900/80 border border-slate-700/80 text-slate-300 hover:text-white hover:border-slate-600 flex items-center justify-center transition-all cursor-pointer"
           >
-            <Settings className="w-4 h-4" />
+            <Settings className="w-3.5 h-3.5" />
           </button>
-          <span className="text-[11px] text-slate-400 font-medium">Settings</span>
+          <span className="text-[10px] sm:text-[11px] text-slate-400 font-medium">Settings</span>
         </div>
       </div>
     </div>

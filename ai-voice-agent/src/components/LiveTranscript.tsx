@@ -26,14 +26,14 @@ export const LiveTranscript: React.FC<LiveTranscriptProps> = ({
   };
 
   return (
-    <div id="live-conversation-container" className="flex flex-col gap-3">
+    <div id="live-conversation-container" className="flex flex-col gap-2">
       <div className="flex items-center justify-between px-1">
         <span className="text-xs font-semibold text-slate-400">Conversation</span>
         <button
           type="button"
           onClick={onResetChat}
           disabled={!onResetChat || messages.length === 0}
-          className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] text-slate-400 hover:text-white hover:bg-slate-800/70 disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex items-center gap-1.5 rounded-lg px-2 py-0.5 text-[11px] text-slate-400 hover:text-white hover:bg-slate-800/70 disabled:cursor-not-allowed disabled:opacity-40"
           title="Reset chat"
           aria-label="Reset chat"
         >
@@ -41,46 +41,46 @@ export const LiveTranscript: React.FC<LiveTranscriptProps> = ({
           <span>Reset</span>
         </button>
       </div>
-      <div className="max-h-[min(55vh,620px)] overflow-y-auto pr-2 flex flex-col gap-4 overscroll-contain">
+      <div className="max-h-[280px] sm:max-h-[320px] overflow-y-auto pr-0.5 flex flex-col gap-2.5 overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {messages.map((msg) => {
         const isUser = msg.role === 'user';
         return (
           <div
             key={msg.id}
             id={`message-bubble-${msg.id}`}
-            className="flex flex-col gap-1.5 transition-all duration-200"
+            className="flex flex-col gap-1 transition-all duration-200"
           >
             {/* Header: Avatar, Name, Timestamp, Copy & Play icons */}
             <div className="flex items-center justify-between px-1">
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2">
                 {isUser ? (
-                  <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-[0_0_8px_rgba(37,99,235,0.4)]">
-                    <User className="w-3.5 h-3.5" />
+                  <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-[0_0_8px_rgba(37,99,235,0.4)]">
+                    <User className="w-3 h-3" />
                   </div>
                 ) : (
-                  <div className="w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-[0_0_8px_rgba(168,85,247,0.4)]">
-                    <Volume2 className="w-3.5 h-3.5" />
+                  <div className="w-5 h-5 rounded-full bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-[0_0_8px_rgba(168,85,247,0.4)]">
+                    <Volume2 className="w-3 h-3" />
                   </div>
                 )}
                 <span className="text-xs font-semibold text-white">
                   {isUser ? 'You' : 'AI Assistant'}
                 </span>
-                <span className="text-[11px] text-slate-400 font-mono">
+                <span className="text-[10.5px] text-slate-400 font-mono">
                   {msg.timestamp}
                 </span>
               </div>
 
               {/* Action buttons: Copy & Speak */}
-              <div className="flex items-center gap-2 text-slate-400">
+              <div className="flex items-center gap-1.5 text-slate-400">
                 <button
                   onClick={() => handleCopy(msg.id, msg.content)}
                   className="p-1 hover:text-slate-200 transition-colors rounded hover:bg-slate-800/40"
                   title="Copy message"
                 >
                   {copiedId === msg.id ? (
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <Check className="w-3 h-3 text-emerald-400" />
                   ) : (
-                    <Copy className="w-3.5 h-3.5" />
+                    <Copy className="w-3 h-3" />
                   )}
                 </button>
                 <button
@@ -88,14 +88,14 @@ export const LiveTranscript: React.FC<LiveTranscriptProps> = ({
                   className="p-1 hover:text-slate-200 transition-colors rounded hover:bg-slate-800/40"
                   title="Listen to message"
                 >
-                  <Volume2 className="w-3.5 h-3.5" />
+                  <Volume2 className="w-3 h-3" />
                 </button>
               </div>
             </div>
 
             {/* Message Bubble Card */}
             <div
-              className={`rounded-2xl p-4 border text-[13.5px] leading-relaxed backdrop-blur-md ${
+              className={`rounded-2xl p-3 border text-[13px] leading-relaxed backdrop-blur-md ${
                 isUser
                   ? 'bg-[#0f172a]/85 border-slate-800/80 text-slate-200'
                   : 'bg-[#11192e]/85 border-slate-800/90 text-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.25)]'

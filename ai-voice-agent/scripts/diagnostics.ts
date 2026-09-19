@@ -12,7 +12,8 @@ import { getProvider } from '../server/services/telephony/index';
 async function table(name: string): Promise<string | null> {
   const client = (await import('../server/db/supabase')).getAdminClient();
   if (!client) return 'unconfigured';
-  const { error } = await client.from(name).select('count', { count: 'exact', head: true });
+  // Plain non-HEAD probe — a HEAD/count request can mask missing-table errors.
+  const { error } = await client.from(name).select('id').limit(1);
   return error ? `error: ${error.message}` : 'ok';
 }
 

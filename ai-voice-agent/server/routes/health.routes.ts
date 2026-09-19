@@ -4,6 +4,7 @@ import { ollamaService } from '../services/ai/ollama.service';
 import { sttService } from '../services/stt/stt.service';
 import { ttsService } from '../services/tts/tts.service';
 import { getProvider } from '../services/telephony/index';
+import { env } from '../config/env';
 
 export const health = async (_req: Request, res: Response): Promise<void> => {
   const [, database, ollama, stt, tts, telephony] = await Promise.all([
@@ -20,7 +21,13 @@ export const health = async (_req: Request, res: Response): Promise<void> => {
     uptimeSeconds: Math.round(process.uptime()),
     timestamp: new Date().toISOString(),
     database: { connected: database, provider: database ? 'supabase' : 'unconfigured' },
-    ai: { available: ollama, provider: 'ollama', baseUrl: process.env.OLLAMA_BASE_URL ?? 'http://127.0.0.1:11434', status: ollama ? 'online' : 'offline' },
+    ai: {
+      available: ollama,
+      provider: 'ollama',
+      baseUrl: env.ollamaBaseUrl,
+      status: ollama ? 'online' : 'offline',
+      model: ollama ? ollamaService.configuredModel() || undefined : undefined,
+    },
     stt,
     tts,
     telephony,

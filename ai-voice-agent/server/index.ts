@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import cors from 'cors';
 import helmet from 'helmet';
 import { WebSocketServer, WebSocket } from 'ws';
-import { env } from './config/env';
+import { env, isOriginAllowed } from './config/env';
 import { logger } from './utils/logger';
 import { requestContext } from './middleware/auth';
 import { notFoundHandler, errorHandler } from './middleware/error';
@@ -24,7 +24,29 @@ export function createApp(): Express {
   app.disable('x-powered-by');
 
   app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
-  app.use(cors({ origin: env.corsOrigin.includes('*') ? true : env.corsOrigin, credentials: true }));
+  app.use(
+    (
+      req: express.Request,
+      res: express.Response,
+      next: express.NextFunction
+    ): void => {
+      const origin = req.headers.origin;
+      if (origin && !isOriginAllowed(origin)) {
+        logger.warn('cors_rejected_origin', { origin });
+        res.status(403).json({ error: 'Not allowed by CORS' });
+        return;
+      }
+      next();
+    }
+  );
+  app.use(
+    cors({
+      // origin callback returns true only for allowed origins; requests without
+      // an Origin header (curl, telephony webhooks, WebSocket clients) pass.
+      origin: (origin, callback) => callback(null, !origin || isOriginAllowed(origin)),
+      credentials: true,
+    })
+  );
   app.use(express.json({ limit: `${env.requestBodyLimitMb}mb` }));
   app.use(express.urlencoded({ extended: true, limit: '2mb' }));
   app.use(requestContext);

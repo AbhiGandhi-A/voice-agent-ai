@@ -11,6 +11,14 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Base URL for the backend API.
+ * - Local dev: leave unset (same origin) or set `VITE_API_BASE_URL=http://localhost:3000`.
+ * - Vercel production: set `VITE_API_BASE_URL=https://<public-backend-url>` at build time.
+ * Never hardcode `localhost` in a production bundle — Vercel supplies this var.
+ */
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined ?? '').replace(/\/+$/, '');
+
 let currentToken = '';
 
 export function setApiToken(token: string | null): void {
@@ -22,7 +30,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (currentToken) headers.Authorization = `Bearer ${currentToken}`;
 
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${API_BASE_URL}/api${path}`, {
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -67,7 +75,7 @@ export interface HealthResponse {
   status: string;
   uptimeSeconds: number;
   database: { connected: boolean; provider: string };
-  ai: { available: boolean; provider: string; baseUrl: string; status: string };
+  ai: { available: boolean; provider: string; baseUrl: string; status: string; model?: string };
   stt: { provider: string; status: string; details: string };
   tts: { provider: string; status: string; details: string };
   telephony: { configured: boolean; details: string };

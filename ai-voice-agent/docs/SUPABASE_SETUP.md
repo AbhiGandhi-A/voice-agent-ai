@@ -76,6 +76,13 @@ telephony provider is configured.
 
 ## Troubleshooting
 
+- **`/api/health` / `db:diag` show `database.connected: false` or `ping: FAILED`
+  while `table * : ok` used to pass:** the old `db:diag` table probe used a
+  `count/head` request that can hide missing-table errors. PostgREST returns
+  `PGRST205 could not find the table 'public.X' in the schema cache` when the
+  migration has not been applied. Fix: run `supabase/migrations/0001_init.sql`
+  in **SQL Editor**, then either wait a few seconds for PostgREST to reload its
+  schema cache or run `notify pgrst, 'reload schema';` in the SQL editor.
 - **`verifyUserToken` returns null / 401s:** the anon key must match the
   project; confirm `.env` values (URL should end in `.supabase.co`).
 - **RLS blocks reads:** ensure the migration (section 2) ran completely — all
@@ -83,3 +90,5 @@ telephony provider is configured.
 - **254/network errors from the dashboard** while running migration: increase
   the query timeout or run statements in smaller batches (the migration is
   composed so partial runs are safe).
+- **When PostgREST still 404s a brand-new table:** run
+  `notify pgrst, 'reload schema';` in SQL Editor to force a schema-cache reload.

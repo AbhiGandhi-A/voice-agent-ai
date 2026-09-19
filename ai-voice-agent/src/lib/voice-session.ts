@@ -104,6 +104,7 @@ export class VoiceSessionManager {
   private recognitionMode: 'manual' | 'wake' | 'command' = 'manual';
   private autoWakeEnabled = false;
   private ttsVoiceTimer: ReturnType<typeof setTimeout> | null = null;
+  private handledFinalResults = new WeakSet<object>();
 
   constructor(config: VoiceSessionConfig, onEvent: VoiceEventCallback) {
     this.config = config;
@@ -270,6 +271,7 @@ export class VoiceSessionManager {
     rec.interimResults = true;
     rec.lang = this.recognitionLanguage();
     rec.maxAlternatives = 1;
+    this.handledFinalResults = new WeakSet<object>();
 
     rec.onstart = () => {
       this.log('started');
@@ -295,7 +297,6 @@ export class VoiceSessionManager {
 
       let interim = '';
       let final = '';
-      const startIdx = event.resultIndex ?? 0;
       // Chrome keeps finalized results in the list and replaces the current
       // non-final result. Read all non-final entries so the live preview does
       // not depend on the browser's resultIndex implementation.
@@ -309,9 +310,11 @@ export class VoiceSessionManager {
           interim += (interim ? ' ' : '') + text;
         }
       }
-      for (let i = startIdx; i < event.results.length; ++i) {
+      for (let i = 0; i < event.results.length; ++i) {
         const res = event.results[i];
         if (!res || res.length === 0 || !res.isFinal) continue;
+        if (this.handledFinalResults.has(res)) continue;
+        this.handledFinalResults.add(res);
         const text = (res[0].transcript ?? '').trim();
         if (!text) continue;
         if (res.isFinal) {

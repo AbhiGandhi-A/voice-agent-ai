@@ -67,4 +67,38 @@ describe('voice feature helpers', () => {
     manager.stopSession();
     vi.unstubAllGlobals();
   });
+
+  it('keeps final transcription when the browser result index is not usable', async () => {
+    const getUserMedia = vi.fn().mockResolvedValue({ getTracks: () => [{ stop: vi.fn() }] });
+    let recognition: InstanceType<typeof FakeRecognition> | undefined;
+    class FakeRecognition {
+      continuous = false;
+      interimResults = false;
+      lang = '';
+      maxAlternatives = 1;
+      onstart = null;
+      onresult: ((event: any) => void) | null = null;
+      onerror = null;
+      onend = null;
+      onaudiostart = null;
+      onaudioend = null;
+      onspeechstart = null;
+      onspeechend = null;
+      start = vi.fn(() => { recognition = this; });
+      stop = vi.fn();
+      abort = vi.fn();
+    }
+    const events: Array<{ type: string; text?: string }> = [];
+    vi.stubGlobal('navigator', { mediaDevices: { getUserMedia } });
+    vi.stubGlobal('window', { SpeechRecognition: FakeRecognition, webkitSpeechRecognition: undefined });
+    const manager = new VoiceSessionManager({ aiModel: '', whisperModel: '', whisperLanguage: 'English', ttsVoice: '', silenceThresholdMs: 900, autoWake: false }, (event) => events.push(event));
+    await manager.startSession();
+    const result = { isFinal: true, length: 1, 0: { transcript: 'hello there', confidence: 1 } };
+    recognition?.onresult?.({ resultIndex: 99, results: { length: 1, 0: result } });
+    recognition?.onresult?.({ resultIndex: 0, results: { length: 1, 0: result } });
+    expect(events.filter((event) => event.type === 'transcript_final')).toHaveLength(1);
+    expect(events.find((event) => event.type === 'transcript_final')?.text).toBe('hello there');
+    manager.stopSession();
+    vi.unstubAllGlobals();
+  });
 });

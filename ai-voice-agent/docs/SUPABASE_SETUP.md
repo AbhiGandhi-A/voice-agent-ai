@@ -26,8 +26,23 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ...
 
 ## 2. Apply the schema
 
-Open **SQL Editor → New query** in the Supabase dashboard and run the entire
-contents of `supabase/migrations/0001_init.sql`. It creates:
+Run the one-command setup — it connects to Postgres directly (DDL can't run
+through the PostgREST API), applies `supabase/migrations/0001_init.sql` in a
+transaction, records a checksum so later runs are no-ops, and reloads the
+PostgREST schema cache:
+
+```powershell
+npm run db:setup
+```
+
+`db:setup` needs one of these in `.env` (see `.env.example`):
+
+- `DATABASE_URL` — full URI from **Dashboard → Connect → Connection string
+  (URI)** — or
+- `SUPABASE_DB_PASSWORD` (project database password; default host/user/db are
+  derived from `SUPABASE_URL`).
+
+It creates:
 
 - `profiles` (metadata + `role`)
 - `conversations`, `messages`
@@ -37,7 +52,11 @@ contents of `supabase/migrations/0001_init.sql`. It creates:
 - Row-level security policies (owner-scoped access), indexes, and a trigger
   that automatically creates a `profiles` row when a user signs up.
 
-The migration is idempotent — safe to re-run.
+The migration is idempotent — safe to re-run; `npm run db:setup` skips it when
+the stored checksum already matches. **Alternative:** open **SQL Editor → New
+query** in the Supabase dashboard and run the entire contents of
+`supabase/migrations/0001_init.sql` — then run `notify pgrst, 'reload schema';`
+in SQL Editor.
 
 ## 3. Create your first user
 
@@ -80,9 +99,10 @@ telephony provider is configured.
   while `table * : ok` used to pass:** the old `db:diag` table probe used a
   `count/head` request that can hide missing-table errors. PostgREST returns
   `PGRST205 could not find the table 'public.X' in the schema cache` when the
-  migration has not been applied. Fix: run `supabase/migrations/0001_init.sql`
-  in **SQL Editor**, then either wait a few seconds for PostgREST to reload its
-  schema cache or run `notify pgrst, 'reload schema';` in the SQL editor.
+  migration has not been applied. Fix: `npm run db:setup` (or run
+  `supabase/migrations/0001_init.sql` in **SQL Editor**, then wait a few seconds
+  for PostgREST to reload its schema cache or run
+  `notify pgrst, 'reload schema';`).
 - **`verifyUserToken` returns null / 401s:** the anon key must match the
   project; confirm `.env` values (URL should end in `.supabase.co`).
 - **RLS blocks reads:** ensure the migration (section 2) ran completely — all

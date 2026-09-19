@@ -37,6 +37,13 @@ only from the same Windows machine. The browser talks to Ollama **only through
 
 ## 1. Windows backend + Ollama
 
+**One-time:** apply the Supabase schema before first run (see
+`SUPABASE_SETUP.md`):
+
+```
+npm run db:setup   # needs DATABASE_URL or SUPABASE_DB_PASSWORD in .env
+```
+
 Three terminals:
 
 ```

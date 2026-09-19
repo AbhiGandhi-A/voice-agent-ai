@@ -27,11 +27,21 @@ Copy-Item .env.example .env
 | Variable | Purpose | Required? |
 | --- | --- | --- |
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Postgres persistence + auth (see `SUPABASE_SETUP.md`) | Yes for full features |
+| `DATABASE_URL` **or** `SUPABASE_DB_PASSWORD` | Direct Postgres connection for `npm run db:setup` (applies the schema) | Before first `db:setup` |
 | `OLLAMA_BASE_URL`, `OLLAMA_MODEL` | Local LLM (default `http://127.0.0.1:11434`) | For chat/summaries |
 | `TELEPHONY_*` | Twilio or Telnyx credentials | For real calls only |
 | `STT_PROVIDER`, `TTS_PROVIDER` | `browser` (default) | Usually leave default |
 
-## 4. Run
+## 4. Apply the Supabase schema (one-time)
+
+```powershell
+npm run db:setup   # applies supabase/migrations/0001_init.sql via Postgres
+```
+
+Skips on re-run when the migration checksum already matches. Needs `DATABASE_URL`
+or `SUPABASE_DB_PASSWORD` in `.env`. See `SUPABASE_SETUP.md` for details.
+
+## 5. Run
 
 ```powershell
 # Dev: rebuilds the frontend (fresh VITE_* env), then starts the API + SPA on :3000
@@ -46,7 +56,7 @@ Open `http://localhost:3000`. Without Supabase credentials the app opens an
 auth screen explaining what is missing; with credentials, sign in with an
 account you create in the Supabase UI.
 
-## 5. Verify
+## 6. Verify
 
 ```powershell
 # Server health — must report truthful states (no fake "online")
@@ -56,7 +66,7 @@ Invoke-RestMethod http://127.0.0.1:3000/api/health | ConvertTo-Json
 npm run db:diag
 ```
 
-## 6. Quality gates
+## 7. Quality gates
 
 ```powershell
 npm run typecheck    # tsc --noEmit
@@ -64,17 +74,18 @@ npm test             # vitest (42 unit tests)
 npm run build
 ```
 
-## 7. Troubleshooting
+## 8. Troubleshooting
 
 - **Build says nothing / server exits silently on Windows:** the server entry
   uses an ESM-aware `isMain` check that requires the `file:///` URL prefix;
   always start with `npm run dev` / `npm start` (script `tsx`/`node` handle it).
 - **`/api/health` shows `database.connected: false`:** `.env` lacks the Supabase
-  variables — see `SUPABASE_SETUP.md`.
+  variables, or the schema migration hasn't been applied yet — run
+  `npm run db:setup` (see `SUPABASE_SETUP.md`).
 - **Stale UI after editing `VITE_*` vars:** `npm run dev` rebuilds the frontend
   on start, so just restart it (a plain `npm start` reuses old assets).
 
-## 8. Expose the backend publicly (tunnel)
+## 9. Expose the backend publicly (tunnel)
 
 The backend is a long-running Node server with WebSockets, so it stays on your
 Windows PC. To let the Vercel-hosted frontend reach it, run a public tunnel that
@@ -107,7 +118,7 @@ media/telephony endpoints work through the tunnel unchanged.
 > tunnel (`cloudflared tunnel create/route/run`) or a pinned ngrok domain for a
 > stable URL.
 
-## 9. Vercel deployment (frontend only)
+## 10. Vercel deployment (frontend only)
 
 The frontend deploys to Vercel as a **static build** (`vercel.json` + the
 `build:frontend` script). The Express backend stays on your PC behind the tunnel.

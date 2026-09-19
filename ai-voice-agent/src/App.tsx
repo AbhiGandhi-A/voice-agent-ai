@@ -486,13 +486,13 @@ export default function App() {
         </main>
       </div>
 
-      {/* Hidden video element for local webcam frame capture & vision analysis */}
+      {/* Offscreen video element for local webcam frame capture & vision analysis */}
       <video
         ref={cameraVideoRef}
         autoPlay
         muted
         playsInline
-        className="hidden pointer-events-none"
+        className="fixed -top-[9999px] -left-[9999px] w-[320px] h-[240px] opacity-0 pointer-events-none"
         aria-hidden="true"
       />
     </div>

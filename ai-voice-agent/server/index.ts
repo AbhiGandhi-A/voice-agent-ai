@@ -12,6 +12,7 @@ import { notFoundHandler, errorHandler } from './middleware/error';
 import { buildApiRouter } from './routes/index';
 import { handleMediaSocket } from './routes/media-stream.ws';
 import { closeAllMediaSessions } from './services/telephony/bridge-registry';
+import { visionService } from './services/vision/vision.service';
 
 const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url));
 // Works in both run modes: `tsx server/index.ts` (SERVER_DIR = <root>/server)
@@ -90,6 +91,7 @@ export function createServer(): { server: http.Server; wss: WebSocketServer; sta
 
   const start = async (): Promise<void> => {
     await new Promise<void>((resolve) => server.listen(env.port, () => resolve()));
+    visionService.startServiceProcess();
     logger.info('server_started', {
       port: env.port,
       environment: env.nodeEnv,
@@ -98,6 +100,7 @@ export function createServer(): { server: http.Server; wss: WebSocketServer; sta
   };
 
   const shutdown = async (): Promise<void> => {
+    visionService.stopServiceProcess();
     await closeAllMediaSessions();
     wss.close();
     await new Promise<void>((resolve) => server.close(() => resolve()));

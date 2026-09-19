@@ -257,6 +257,12 @@ export function useAppData(enabled = true): AppData {
         setVoiceSettings(mapped.voice);
         setCallSettings(mapped.call);
         setServices(mapHealth(health));
+        if (health.vision) {
+          setVisionState((prev) => ({
+            ...prev,
+            available: Boolean(health.vision?.available),
+          }));
+        }
         setConnectionStatus(health.status === 'ok' ? 'Connected' : 'Error');
       } catch {
         if (active) setConnectionStatus('Disconnected');
@@ -267,6 +273,25 @@ export function useAppData(enabled = true): AppData {
     return () => {
       active = false;
     };
+  }, [enabled]);
+
+  // Periodic health probe (4s) to keep background service states and vision availability live.
+  useEffect(() => {
+    if (!enabled) return;
+    const interval = setInterval(() => {
+      fetchHealth()
+        .then((health) => {
+          setServices(mapHealth(health));
+          if (health.vision) {
+            setVisionState((prev) => ({
+              ...prev,
+              available: Boolean(health.vision?.available),
+            }));
+          }
+        })
+        .catch(() => undefined);
+    }, 4000);
+    return () => clearInterval(interval);
   }, [enabled]);
 
   // Load messages when a real conversation is selected.
@@ -291,8 +316,11 @@ export function useAppData(enabled = true): AppData {
       const res = await apiListConversations();
       const convs = res.conversations.map(mapConversationRow);
       setConversations((prev) => {
-        const byId = new Map(prev.map((c) => [c.id, c]));
-        return convs.map((c) => byId.get(c.id) ?? c);
+        const byId = new Map<string, Conversation>(prev.map((c) => [c.id, c]));
+        return convs.map((c) => {
+          const existing = byId.get(c.id);
+          return existing ? { ...c, messages: existing.messages, messageCount: existing.messages.length || c.messageCount } : c;
+        });
       });
     } catch {
       // keep current state on failure
@@ -355,18 +383,18 @@ export function useAppData(enabled = true): AppData {
   }
 
   const promotePlaceholderToServer = useCallback((serverId: string, title: string) => {
-    if (sessionConvIdRef.current !== CONV_PLACEHOLDER_ID) return;
+    sessionConvIdRef.current = serverId;
+    setCurrentConvId(serverId);
     setPlaceholderMessages((prev) => {
       if (prev.length > 0) {
         setConversations((existing) =>
           existing.some((c) => c.id === serverId)
-            ? existing.map((c) => (c.id === serverId ? { ...c, messages: [...c.messages, ...prev] } : c))
+            ? existing.map((c) => (c.id === serverId ? { ...c, messages: [...c.messages, ...prev], messageCount: c.messages.length + prev.length } : c))
             : [blankConversation(serverId, title, prev), ...existing]
         );
       }
       return [];
     });
-    sessionConvIdRef.current = serverId;
   }, []);
 
   const handleSendMessage = useCallback(
@@ -386,6 +414,7 @@ export function useAppData(enabled = true): AppData {
         if (res.conversationId) {
           promotePlaceholderToServer(res.conversationId, trimmed.slice(0, 40));
           sessionConvIdRef.current = res.conversationId;
+          setCurrentConvId(res.conversationId);
         }
         appendToSession(newMsg('assistant', res.reply));
         void refreshConversations();
@@ -408,10 +437,13 @@ export function useAppData(enabled = true): AppData {
   );
 
   const appendAiReply = useCallback(async (text: string) => {
+    if (sessionConvIdRef.current !== CONV_PLACEHOLDER_ID && currentConvId === CONV_PLACEHOLDER_ID) {
+      setCurrentConvId(sessionConvIdRef.current);
+    }
     appendToSession(newMsg('assistant', text));
     void refreshConversations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [currentConvId]);
 
   // ── telephony ─────────────────────────────────────────────────────────
   const handleStartCall = useCallback(

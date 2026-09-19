@@ -1,3 +1,5 @@
+import { spawn, ChildProcess } from 'child_process';
+import path from 'path';
 import { logger } from '../../utils/logger';
 
 export interface VisionAnalysisResult {
@@ -33,6 +35,10 @@ const REQUEST_TIMEOUT_MS = 3000;
 const HEALTH_TIMEOUT_MS = 1500;
 
 export class VisionService {
+  private pythonProcess: ChildProcess | null = null;
+  private isSpawning = false;
+  private spawnAttempts = 0;
+
   private latestState: CachedVisionState = {
     faceDetected: false,
     faceCount: 0,
@@ -45,6 +51,60 @@ export class VisionService {
     serviceAvailable: false,
     lastUpdated: 0,
   };
+
+  public startServiceProcess(): void {
+    if (this.pythonProcess || this.isSpawning || this.spawnAttempts > 3) return;
+    this.isSpawning = true;
+    this.spawnAttempts++;
+    const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+    try {
+      const proc = spawn(pythonCmd, ['vision_service/main.py'], {
+        cwd: process.cwd(),
+        stdio: ['ignore', 'pipe', 'pipe'],
+        detached: false,
+      });
+
+      proc.stdout?.on('data', (data: Buffer) => {
+        logger.info(`[VISION-PROC] ${data.toString().trim()}`);
+      });
+
+      proc.stderr?.on('data', (data: Buffer) => {
+        const msg = data.toString().trim();
+        if (msg) logger.info(`[VISION-PROC] ${msg}`);
+      });
+
+      proc.on('error', (err: Error) => {
+        logger.warn('[VISION] Failed to spawn python vision process', { error: err.message });
+        this.pythonProcess = null;
+        this.isSpawning = false;
+      });
+
+      proc.on('exit', (code: number | null) => {
+        logger.info(`[VISION] Python vision process exited with code ${code}`);
+        this.pythonProcess = null;
+        this.isSpawning = false;
+      });
+
+      this.pythonProcess = proc;
+      this.isSpawning = false;
+    } catch (err) {
+      logger.warn('[VISION] Could not spawn python process', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      this.isSpawning = false;
+    }
+  }
+
+  public stopServiceProcess(): void {
+    if (this.pythonProcess) {
+      try {
+        this.pythonProcess.kill();
+      } catch {
+        // ignore
+      }
+      this.pythonProcess = null;
+    }
+  }
 
   public async checkHealth(): Promise<VisionServiceHealth> {
     const startedAt = Date.now();
@@ -84,6 +144,10 @@ export class VisionService {
       };
     } catch (error) {
       this.latestState.serviceAvailable = false;
+      // If offline and not running in test mode, attempt to auto-start Python service
+      if (process.env.NODE_ENV !== 'test') {
+        this.startServiceProcess();
+      }
       return {
         status: 'offline',
         available: false,

@@ -22,6 +22,11 @@ const CLIENT_DIST = path.resolve(PROJECT_ROOT, 'dist', 'client');
 export function createApp(): Express {
   const app = express();
   app.disable('x-powered-by');
+  // The backend is reached through a local proxy tunnel (cloudflared/ngrok),
+  // which appends X-Forwarded-For. Trust only loopback proxies so
+  // express-rate-limit and req.ip see the real client IP without letting
+  // arbitrary upstream IPs spoof the header.
+  app.set('trust proxy', 'loopback');
 
   app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
   app.use(

@@ -63,7 +63,7 @@ export const conversationsService = {
 
     let query = client
       .from('conversations')
-      .select('id, title, type, status, started_at, updated_at, summary, messages(count)', { count: 'exact' })
+      .select('id, title, type, status, started_at, updated_at, messages(count)', { count: 'exact' })
       .eq('user_id', userId)
       .order('updated_at', { ascending: false });
 
@@ -87,7 +87,7 @@ export const conversationsService = {
       updatedAt: row.updated_at as string,
       messageCount: Array.isArray(row.messages) ? Number(row.messages[0]?.count ?? 0) : 0,
       lastMessage: null,
-      summary: (row.summary as string) ?? null,
+      summary: null,
     }));
 
     return { total: count ?? 0, conversations, page, limit };

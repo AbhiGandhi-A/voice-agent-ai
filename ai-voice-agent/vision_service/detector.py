@@ -36,6 +36,8 @@ CONFIDENCE_THRESHOLD = 0.35
 def count_fingers_from_landmarks(landmarks: np.ndarray) -> Tuple[int, Dict[str, bool]]:
     """
     Computes finger extension states and total count using rotation-invariant joint distances.
+    Computes finger extension states and total count using rotation-invariant joint distances
+    and directional alignment.
     Landmarks array shape: (21, 3) or (21, 2)
     0: wrist
     Thumb: 1(CMC), 2(MCP), 3(IP), 4(TIP)
@@ -49,6 +51,7 @@ def count_fingers_from_landmarks(landmarks: np.ndarray) -> Tuple[int, Dict[str, 
 
     wrist = 0
     pinky_mcp = 17
+    index_mcp = 5
 
     finger_joints = [
         ("index", 5, 6, 7, 8),
@@ -67,11 +70,19 @@ def count_fingers_from_landmarks(landmarks: np.ndarray) -> Tuple[int, Dict[str, 
         d_mcp_tip = dist(mcp, tip)
         d_mcp_pip = dist(mcp, pip)
 
+        # Extended if tip is farther from wrist than PIP & DIP, and farther from MCP than PIP
         is_open = (
             (d_wrist_tip > d_wrist_pip * 1.05)
+            (d_wrist_tip > d_wrist_pip)
             and (d_wrist_tip > d_wrist_dip)
             and (d_mcp_tip > d_mcp_pip * 1.1)
+            and (d_mcp_tip > d_mcp_pip)
         )
+        # Check vertical posture if hand is roughly vertical (wrist Y > MCP Y)
+        if landmarks[wrist][1] > landmarks[mcp][1]:
+            is_vertical_open = (landmarks[tip][1] < landmarks[pip][1]) and (landmarks[tip][1] < landmarks[dip][1])
+            is_open = is_open or is_vertical_open
+
         fingers_state[name] = bool(is_open)
         if is_open:
             total_open += 1
@@ -79,9 +90,16 @@ def count_fingers_from_landmarks(landmarks: np.ndarray) -> Tuple[int, Dict[str, 
     # Thumb extension check
     d_pinky_tip = dist(pinky_mcp, 4)
     d_pinky_ip = dist(pinky_mcp, 3)
+    d_index_tip = dist(index_mcp, 4)
+    d_index_ip = dist(index_mcp, 3)
     d_wrist_tip = dist(wrist, 4)
     d_wrist_mcp = dist(wrist, 2)
     thumb_open = (d_pinky_tip > d_pinky_ip * 1.15) and (d_wrist_tip > d_wrist_mcp * 1.1)
+
+    thumb_open = (
+        (d_pinky_tip > d_pinky_ip or d_index_tip > d_index_ip * 1.05)
+        and (d_wrist_tip > d_wrist_mcp)
+    )
     fingers_state["thumb"] = bool(thumb_open)
     if thumb_open:
         total_open += 1
@@ -125,15 +143,18 @@ class VisionDetector:
         print("[VISION SERVICE] Models loaded and ready.")
 
         # 3. MediaPipe Palm Detector & HandPose Estimator
+        # 3. MediaPipe Palm Detector & HandPose Estimator (optimized thresholds for real webcam conditions)
         print("[VISION SERVICE] Initializing Palm Detector & Hand Landmark Estimator...")
         self.palm_detector = MPPalmDet(
             modelPath=PALM_MODEL_PATH,
             scoreThreshold=0.5,
+            scoreThreshold=0.20,
             nmsThreshold=0.3,
         )
         self.hand_estimator = MPHandPose(
             modelPath=HANDPOSE_MODEL_PATH,
             confThreshold=0.5,
+            confThreshold=0.20,
         )
 
         print("[VISION SERVICE] All vision models (Face, Emotion, Hand Landmark) loaded and ready.")

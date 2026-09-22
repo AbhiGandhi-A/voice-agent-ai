@@ -114,7 +114,7 @@ export default function App() {
           if (!vid || !dataRef.current.voiceSettings.cameraEnabled || !dataRef.current.voiceSettings.faceAnalysisEnabled) {
             return;
           }
-          const frame = captureVideoFrame(vid, 320, 240, 0.65);
+          const frame = captureVideoFrame(vid, 480, 360, 0.8);
           if (frame) {
             void dataRef.current.processVisionFrame(frame);
           }

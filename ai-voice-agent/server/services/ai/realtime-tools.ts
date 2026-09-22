@@ -29,6 +29,11 @@ const VISION_INTENT =
 
 export function isFingerQuery(message: string): boolean {
   return FINGER_INTENT.test(message) || /\b(finger|fingers|hand|hands|thumb|thumbs|palm|pinky|ungli|ungliya|aangli|aangliyo)\b/i.test(message);
+  return (
+    FINGER_INTENT.test(message) ||
+    /\b(finger|fingers|hand|hands|thumb|thumbs|palm|palms|pinky|ungli|ungliya|aangli|aangliyo)\b/i.test(message) ||
+    /(?:finger|fingr|aangli|ungli)/i.test(message)
+  );
 }
 
 export function isVisionQuery(message: string): boolean {

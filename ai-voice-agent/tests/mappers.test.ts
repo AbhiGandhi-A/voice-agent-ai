@@ -79,8 +79,8 @@ describe('mappers', () => {
       provider_call_id: null,
       duration_seconds: 125,
       recording_url: null,
-      created_at: '2026-09-19T10:00:00.000Z',
-      updated_at: '2026-09-19T10:02:00.000Z',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
       started_at: null,
       ended_at: null,
     };

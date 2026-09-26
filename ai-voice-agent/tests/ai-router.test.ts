@@ -154,6 +154,50 @@ describe('AI provider router', () => {
     expect(result.text).toContain('do not detect any face in the frame');
   });
 
+  it('answers face-count questions from the current vision result', async () => {
+    const groq = { generate: vi.fn() };
+    const search = vi.fn();
+    const ollama = { generate: vi.fn() };
+    const vision = {
+      getLatestState: vi.fn().mockReturnValue({
+        cameraActive: true,
+        faceDetected: true,
+        faceCount: 2,
+        expression: 'neutral',
+        confidence: 0.8,
+        serviceAvailable: true,
+        lastUpdated: Date.now(),
+      }),
+      checkHealth: vi.fn().mockResolvedValue({ status: 'online', available: true, provider: 'local-python', model: 'yunet', device: 'cpu' }),
+    };
+
+    const result = await routeAiRequest(input('How muxh fadce you seeing'), { groq, search, ollama, vision });
+
+    expect(result.source).toBe('vision');
+    expect(result.text).toContain('2 faces');
+    expect(groq.generate).not.toHaveBeenCalled();
+  });
+
+  it('returns zero for a face-count question when the current frame has no face', async () => {
+    const vision = {
+      getLatestState: vi.fn().mockReturnValue({
+        cameraActive: true,
+        faceDetected: false,
+        faceCount: 0,
+        expression: 'none',
+        confidence: 0,
+        serviceAvailable: true,
+        lastUpdated: Date.now(),
+      }),
+      checkHealth: vi.fn().mockResolvedValue({ status: 'online', available: true, provider: 'local-python', model: 'yunet', device: 'cpu' }),
+    };
+
+    const result = await routeAiRequest(input('How many faces do you see?'), { vision });
+
+    expect(result.source).toBe('vision');
+    expect(result.text).toContain('0 faces');
+  });
+
   it('returns stale message when frame data is older than 3.5 seconds', async () => {
     const groq = { generate: vi.fn() };
     const search = vi.fn();
@@ -220,6 +264,26 @@ describe('AI provider router', () => {
 
     expect(result.source).toBe('vision');
     expect(result.text).toContain('8 visible fingers across both hands');
+  });
+
+  it('returns the number of hands, not fingers, for hand-count questions', async () => {
+    const vision = {
+      getLatestState: vi.fn().mockReturnValue({
+        cameraActive: true,
+        handDetected: true,
+        handCount: 2,
+        fingerCount: 5,
+        serviceAvailable: true,
+        lastUpdated: Date.now(),
+      }),
+      checkHealth: vi.fn().mockResolvedValue({ status: 'online', available: true, provider: 'local-python', model: 'mediapipe-hands', device: 'cpu' }),
+    };
+
+    const result = await routeAiRequest(input('How much hands seeing?'), { vision });
+
+    expect(result.source).toBe('vision');
+    expect(result.text).toContain('2 visible hands');
+    expect(result.text).not.toContain('5 visible fingers');
   });
 
   it('returns camera-off message when asking finger questions with camera disabled', async () => {

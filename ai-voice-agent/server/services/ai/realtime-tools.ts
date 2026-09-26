@@ -35,9 +35,22 @@ export function isFingerQuery(message: string): boolean {
   );
 }
 
+export function isHandCountQuery(message: string): boolean {
+  return /\bhow\s+(?:many|much)\s+hands?\b/i.test(message)
+    || /\b(?:count|number of)\s+(?:the\s+)?hands?\b/i.test(message)
+    || /\bhands?\s+(?:can you see|do you see|are you seeing|you seeing|visible|in (?:the )?(?:camera|frame))\b/i.test(message);
+}
+
+export function isFaceCountQuery(message: string): boolean {
+  const hasFaceTerm = /\bfad?ces?\b/i.test(message);
+  const asksForCount = /\bhow\b.{0,24}\b(?:many|much|manny|muxh)\b|\b(?:count|number of)\b/i.test(message);
+  const asksWhatIsVisible = /\b(?:see|seeing|detect|visible)\b/i.test(message);
+  return hasFaceTerm && (asksForCount || asksWhatIsVisible);
+}
+
 export function isVisionQuery(message: string): boolean {
   if (SEARCH_INTENT.test(message)) return false;
-  return VISION_INTENT.test(message) || FINGER_INTENT.test(message) || isFingerQuery(message);
+  return VISION_INTENT.test(message) || FINGER_INTENT.test(message) || isFingerQuery(message) || isHandCountQuery(message) || isFaceCountQuery(message);
 }
 
 export function selectRealtimeTool(message: string): 'current_time' | 'web_search' | 'vision' | null {

@@ -1,7 +1,7 @@
 import { ApiError } from '../../middleware/error';
 import { logger } from '../../utils/logger';
 import { buildLanguageSystemInstruction, normalizeAssistantLanguage } from '../../../src/lib/language';
-import { getCurrentTime, selectRealtimeTool, webSearch, RuntimeContext, WebSearchResult, isFingerQuery, isDateOnlyQuestion } from './realtime-tools';
+import { getCurrentTime, selectRealtimeTool, webSearch, RuntimeContext, WebSearchResult, isFingerQuery, isHandCountQuery, isFaceCountQuery, isDateOnlyQuestion } from './realtime-tools';
 import { groqService } from './groq.service';
 import { ollamaService } from './ollama.service';
 import { visionService } from '../vision/vision.service';
@@ -172,7 +172,9 @@ async function visionResponse(input: AiRouteInput, dependencies: AiRouterDepende
   const visionState = dependencies.vision.getLatestState();
   const health = await dependencies.vision.checkHealth().catch(() => ({ available: false, status: 'offline' as const, provider: 'local-python', model: '', device: 'cpu' }));
   const language = normalizeAssistantLanguage(input.language);
-  const fingerQuery = isFingerQuery(input.message);
+  const handCountQuery = isHandCountQuery(input.message);
+  const fingerQuery = isFingerQuery(input.message) && !handCountQuery;
+  const faceCountQuery = isFaceCountQuery(input.message);
 
   // 1. Camera is OFF
   if (!visionState.cameraActive) {
@@ -225,6 +227,19 @@ async function visionResponse(input: AiRouteInput, dependencies: AiRouterDepende
     return { text, model: 'local-vision-router', latencyMs: Date.now() - startedAt, source: 'vision' };
   }
 
+  if (handCountQuery) {
+    const handCount = visionState.handDetected ? visionState.handCount ?? 1 : 0;
+    const text = language === 'hi'
+      ? `मुझे वर्तमान कैमरा फ्रेम में ${handCount} हाथ दिख रहे हैं।`
+      : language === 'gu'
+        ? `મને વર્તમાન કેમેરા ફ્રેમમાં ${handCount} હાથ દેખાય છે.`
+        : language === 'hinglish'
+          ? `Mujhe current camera frame mein ${handCount} hand${handCount === 1 ? '' : 's'} dikh rahe hain.`
+          : `I detect ${handCount} visible hand${handCount === 1 ? '' : 's'} in the current camera frame.`;
+
+    return { text, model: 'local-python-vision', latencyMs: Date.now() - startedAt, source: 'vision' };
+  }
+
   // ─── 3. Finger Counting Branch ─────────────────────────────────────────
   if (fingerQuery) {
     if (!visionState.handDetected || (visionState.handCount ?? 0) === 0) {
@@ -266,15 +281,36 @@ async function visionResponse(input: AiRouteInput, dependencies: AiRouterDepende
 
   // ─── 4. Face & Expression Branch ───────────────────────────────────────
   if (!visionState.faceDetected || visionState.faceCount === 0) {
-    const text = language === 'hi'
-      ? 'कैमरा चालू है, लेकिन मुझे वर्तमान कैमरा फ्रेम में कोई चेहरा दिखाई नहीं दे रहा है।'
-      : language === 'gu'
-        ? 'કેમેરો ચાલુ છે, પરંતુ મને વર્તમાન કેમેરા ફ્રેમમાં કોઈ ચહેરો દેખાતો નથી.'
-        : language === 'hinglish'
-          ? 'Camera on hai, lekin mujhe frame mein koi face detect nahi ho raha hai.'
-          : 'The camera is on, but I do not detect any face in the frame right now.';
+    const text = faceCountQuery
+      ? language === 'hi'
+        ? 'मुझे वर्तमान कैमरा फ्रेम में 0 चेहरे दिख रहे हैं।'
+        : language === 'gu'
+          ? 'મને વર્તમાન કેમેરા ફ્રેમમાં 0 ચહેરા દેખાય છે.'
+          : language === 'hinglish'
+            ? 'Mujhe current camera frame mein 0 faces dikh rahe hain.'
+            : 'I detect 0 faces in the current camera frame.'
+      : language === 'hi'
+        ? 'कैमरा चालू है, लेकिन मुझे वर्तमान कैमरा फ्रेम में कोई चेहरा दिखाई नहीं दे रहा है।'
+        : language === 'gu'
+          ? 'કેમેરો ચાલુ છે, પરંતુ મને વર્તમાન કેમેરા ફ્રેમમાં કોઈ ચહેરો દેખાતો નથી.'
+          : language === 'hinglish'
+            ? 'Camera on hai, lekin mujhe frame mein koi face detect nahi ho raha hai.'
+            : 'The camera is on, but I do not detect any face in the frame right now.';
 
     return { text, model: 'local-vision-router', latencyMs: Date.now() - startedAt, source: 'vision' };
+  }
+
+  if (faceCountQuery) {
+    const faceCount = visionState.faceCount;
+    const text = language === 'hi'
+      ? `मुझे वर्तमान कैमरा फ्रेम में ${faceCount} ${faceCount === 1 ? 'चेहरा' : 'चेहरे'} दिख रहे हैं।`
+      : language === 'gu'
+        ? `મને વર્તમાન કેમેરા ફ્રેમમાં ${faceCount} ${faceCount === 1 ? 'ચહેરો' : 'ચહેરા'} દેખાય છે.`
+        : language === 'hinglish'
+          ? `Mujhe current camera frame mein ${faceCount} face${faceCount === 1 ? '' : 's'} dikh rahe hain.`
+          : `I detect ${faceCount} face${faceCount === 1 ? '' : 's'} in the current camera frame.`;
+
+    return { text, model: 'local-python-vision', latencyMs: Date.now() - startedAt, source: 'vision' };
   }
 
   const expr = visionState.expression || 'neutral';

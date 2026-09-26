@@ -73,7 +73,7 @@ def count_fingers_from_landmarks(landmarks: np.ndarray) -> Tuple[int, Dict[str, 
         # Extended if tip is farther from wrist than PIP & DIP, and farther from MCP than PIP
         is_open = (
             (d_wrist_tip > d_wrist_pip * 1.05)
-            (d_wrist_tip > d_wrist_pip)
+            and (d_wrist_tip > d_wrist_pip)
             and (d_wrist_tip > d_wrist_dip)
             and (d_mcp_tip > d_mcp_pip * 1.1)
             and (d_mcp_tip > d_mcp_pip)
@@ -148,13 +148,11 @@ class VisionDetector:
         self.palm_detector = MPPalmDet(
             modelPath=PALM_MODEL_PATH,
             scoreThreshold=0.5,
-            scoreThreshold=0.20,
             nmsThreshold=0.3,
         )
         self.hand_estimator = MPHandPose(
             modelPath=HANDPOSE_MODEL_PATH,
             confThreshold=0.5,
-            confThreshold=0.20,
         )
 
         print("[VISION SERVICE] All vision models (Face, Emotion, Hand Landmark) loaded and ready.")

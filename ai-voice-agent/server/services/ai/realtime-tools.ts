@@ -28,7 +28,6 @@ const VISION_INTENT =
   /\b(can you see (?:me|my face|my expression|anything|anyone|who)|do you see (?:me|my face|my expression|anything|anyone|who)|are you able to see (?:me|anything)|are you seeing (?:me|my face)|see my (?:face|expression|emotion)|how do i look|what is my (?:facial )?expression|what emotion (?:am i|is my)|am i (?:smiling|happy|sad|visible|in front)|am i looking at|look at me|check my (?:face|expression)|what do you see|what can you see|describe what you see|tell me what you see|who is in front of (?:you|the camera)|is someone in front of (?:you|the camera)|is anyone in front of (?:you|the camera)|is (?:my |the )?camera (?:on|working)|is camera (?:on|working)|expression|facial expression|emotion|vision)\b|(?:देख|દેખ|જોઈ|હાવભાવ|ભાવ|મુખ|मुस्कुरा|हस|face|camera|vision|chehra|chehro|dikh|expression|emotion).*(?:सकते|શકો|છો|हो|है|શું|क्या|चेहरा|ચહેરો|visible|lag|kaisa|kem|kaise|batao|bolo|kaho|hai|che|chhe|\?)/i;
 
 export function isFingerQuery(message: string): boolean {
-  return FINGER_INTENT.test(message) || /\b(finger|fingers|hand|hands|thumb|thumbs|palm|pinky|ungli|ungliya|aangli|aangliyo)\b/i.test(message);
   return (
     FINGER_INTENT.test(message) ||
     /\b(finger|fingers|hand|hands|thumb|thumbs|palm|palms|pinky|ungli|ungliya|aangli|aangliyo)\b/i.test(message) ||
@@ -68,6 +67,14 @@ export function getCurrentTime(timezone?: string, now = new Date()): CurrentTime
     dayOfWeek,
     timezone: resolvedTimezone,
   };
+}
+
+export function isDateOnlyQuestion(message: string): boolean {
+  const english = /\b(?:what(?:'s| is)?\s+(?:the\s+)?date|which date|today(?:'s| is the)? date|tomorrow(?:'s| is the)? date|yesterday(?:'s| was the)? date|date\s*\?)\b/i.test(message);
+  const hindi = /(?:आज\s*(?:की|का)?\s*तारीख|तारीख|दिन).*?(?:क्या|क्यो|है|हैं|हो|כן)/i.test(message);
+  const gujarati = /(?:તારીખ|દિવસ).*?(?:શું|હોય|છે|હै)/i.test(message);
+  const includesTime = /\b(?:time|clock|current time|what time)\b/i.test(message);
+  return (english || hindi || gujarati) && !includesTime;
 }
 
 export function parseMemoryCommand(message: string): { action: 'remember' | 'forget'; text: string } | null {

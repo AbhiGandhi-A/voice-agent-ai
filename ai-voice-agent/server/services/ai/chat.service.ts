@@ -122,15 +122,34 @@ function buildSystemPrompt(basePrompt: string, customerContext: string, memories
   const languageInstruction = buildLanguageSystemInstruction(language);
 
   const visionState = visionService.getLatestState();
-  const visionContext = visionState.cameraActive
-    ? `\n\nREAL-TIME WEBCAM VISION CONTEXT:
-- Webcam: Active (User enabled camera)
-- Face Detected: ${visionState.faceDetected ? `Yes (${visionState.faceCount} face)` : 'No face in frame'}
-- Expression Detected: ${visionState.faceDetected ? `${visionState.expression} (${Math.round((visionState.confidence || 0) * 100)}% confidence)` : 'None'}
-You have real-time visual perception via the user's camera and local vision model. If the user asks about what you see or their facial expression, you CAN see and answer based on this vision context. Never claim you are a text-only AI unable to see when the webcam is active.`
-    : '\n\nREAL-TIME WEBCAM VISION CONTEXT:\n- Webcam: Inactive/OFF. If asked if you can see the user, explain that the camera is currently off.';
+  const visionContext = buildVisionContextForPrompt(visionState);
 
   return `${languageInstruction}\n${basePrompt || 'You are a friendly, concise voice AI assistant.'}\n${security}${customerContext}${memoryContext}${visionContext}`;
+}
+
+export function buildVisionContextForPrompt(visionState: ReturnType<typeof visionService.getLatestState>): string {
+  if (!visionState.cameraActive) {
+    return '\n\nREAL-TIME WEBCAM VISION CONTEXT:\n- Webcam: Inactive/OFF. If asked if you can see the user, explain that the camera is currently off.';
+  }
+
+  if (visionState.lastUpdated === 0 || Date.now() - visionState.lastUpdated > 3500) {
+    return '\n\nREAL-TIME WEBCAM VISION CONTEXT:\n- Webcam: Active, but no recent usable frame data is available. Do not claim to see the user or infer emotions until a fresh valid frame is received.';
+  }
+
+  const safePayload = JSON.stringify({
+    cameraActive: true,
+    faceDetected: Boolean(visionState.faceDetected),
+    faceCount: Number(visionState.faceCount || 0),
+    expression: visionState.expression || 'none',
+    confidence: Number(visionState.confidence || 0),
+    landmarksDetected: Boolean(visionState.landmarksDetected),
+    handDetected: Boolean(visionState.handDetected),
+    handCount: Number(visionState.handCount || 0),
+    fingerCount: Number(visionState.fingerCount || 0),
+    lastUpdated: visionState.lastUpdated,
+  }, null, 2);
+
+  return `\n\nREAL-TIME WEBCAM VISION CONTEXT:\n\n${safePayload}\n\nUse this latest valid vision JSON when answering questions about what you can see, the user's face, expression, hand count, or finger count.`;
 }
 
 async function handleMemoryCommand(userId: string, message: string): Promise<string | null> {

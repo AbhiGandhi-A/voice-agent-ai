@@ -48,12 +48,44 @@ export const DEFAULT_CALL_SETTINGS: CallSettings = {
 };
 
 export function mapMessage(m: BackendMessage): Message {
+  const content = sanitizeMessageContent(m.content);
   return {
     id: m.id,
     role: m.sender === 'assistant' || m.sender === 'agent' ? 'assistant' : m.sender === 'system' ? 'system' : 'user',
-    content: m.content,
+    content,
     timestamp: timeLabelSeconds(m.createdAt),
   };
+}
+
+function sanitizeMessageContent(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (content === null || content === undefined) return '';
+  if (typeof content === 'number' || typeof content === 'boolean') return String(content);
+
+  if (typeof content === 'object') {
+    const value = content as Record<string, unknown>;
+
+    if (typeof value.tagName === 'string' && value.tagName.toLowerCase() === 'svg') {
+      return '';
+    }
+
+    if (value && typeof value.ownerSVGElement !== 'undefined') {
+      return '';
+    }
+
+    if (Array.isArray(value)) {
+      return value.map(sanitizeMessageContent).filter(Boolean).join(', ');
+    }
+
+    if (typeof value.toString === 'function' && value.toString !== Object.prototype.toString) {
+      const rendered = value.toString();
+      if (typeof rendered === 'string' && rendered !== '[object Object]' && !rendered.startsWith('[object ')) {
+        return rendered;
+      }
+    }
+  }
+
+  return '';
 }
 
 export function mapConversationRow(c: BackendConversation): Conversation {

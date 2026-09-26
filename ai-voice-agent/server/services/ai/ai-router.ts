@@ -1,7 +1,7 @@
 import { ApiError } from '../../middleware/error';
 import { logger } from '../../utils/logger';
 import { buildLanguageSystemInstruction, normalizeAssistantLanguage } from '../../../src/lib/language';
-import { getCurrentTime, selectRealtimeTool, webSearch, RuntimeContext, WebSearchResult, isFingerQuery } from './realtime-tools';
+import { getCurrentTime, selectRealtimeTool, webSearch, RuntimeContext, WebSearchResult, isFingerQuery, isDateOnlyQuestion } from './realtime-tools';
 import { groqService } from './groq.service';
 import { ollamaService } from './ollama.service';
 import { visionService } from '../vision/vision.service';
@@ -140,14 +140,24 @@ function currentTimeResponse(input: AiRouteInput): AiRouteResult {
   const startedAt = Date.now();
   const current = getCurrentTime(input.runtimeContext?.timezone, input.runtimeContext?.currentTime ? new Date(input.runtimeContext.currentTime) : new Date());
   const language = normalizeAssistantLanguage(input.language);
+  const wantsDateOnly = isDateOnlyQuestion(input.message);
+  const dateText = current.date;
 
-  const text = language === 'hi'
-    ? `वर्तमान समय ${current.time} है और आज की तारीख ${current.date} (${current.dayOfWeek}) है।`
-    : language === 'gu'
-      ? `હાલનો સમય ${current.time} છે અને આજની તારીખ ${current.date} (${current.dayOfWeek}) છે.`
-      : language === 'hinglish'
-        ? `Abhi ka time ${current.time} hai aur aaj ki date ${current.date} (${current.dayOfWeek}) hai.`
-        : `The current time is ${current.time} on ${current.dayOfWeek}, ${current.date} (${current.timezone}).`;
+  const text = wantsDateOnly
+    ? language === 'hi'
+      ? `आज की तारीख ${dateText} है।`
+      : language === 'gu'
+        ? `આજની તારીખ ${dateText} છે.`
+        : language === 'hinglish'
+          ? `Aaj ki date ${dateText} hai.`
+          : `Today is ${dateText}.`
+    : language === 'hi'
+      ? `वर्तमान समय ${current.time} है और आज की तारीख ${dateText} (${current.dayOfWeek}) है।`
+      : language === 'gu'
+        ? `હાલનો સમય ${current.time} છે અને આજની તારીખ ${dateText} (${current.dayOfWeek}) છે.`
+        : language === 'hinglish'
+          ? `Abhi ka time ${current.time} hai aur aaj ki date ${dateText} (${current.dayOfWeek}) hai.`
+          : `The current time is ${current.time} on ${current.dayOfWeek}, ${dateText} (${current.timezone}).`;
 
   return {
     text,

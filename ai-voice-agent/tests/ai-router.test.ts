@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { routeAiRequest } from '../server/services/ai/ai-router';
+import { mapMessage } from '../src/lib/mappers';
+import { buildVisionContextForPrompt } from '../server/services/ai/chat.service';
 
 const input = (message: string, language = 'en') => ({
   message,
@@ -255,5 +257,86 @@ describe('AI provider router', () => {
 
     expect(result.source).toBe('vision');
     expect(result.text).toContain('do not detect any visible hand or fingers');
+  });
+
+  it('returns only the date when asked for today\'s date', async () => {
+    const groq = { generate: vi.fn() };
+    const search = vi.fn();
+    const ollama = { generate: vi.fn() };
+
+    const result = await routeAiRequest({
+      ...input("What is today's date?"),
+      runtimeContext: { currentTime: '2026-09-19T09:00:00.000Z', timezone: 'Asia/Kolkata' },
+    }, { groq, search, ollama });
+
+    expect(result.source).toBe('current_time');
+    expect(result.text).toContain('September 19, 2026');
+    expect(result.text).not.toContain('9:00');
+    expect(result.text).not.toContain('AM');
+    expect(result.text).not.toContain('PM');
+  });
+
+  it('sanitizes SVG-like message payloads before rendering', () => {
+    const svgPayload = { tagName: 'svg', ownerSVGElement: null } as unknown as string;
+
+    const mapped = mapMessage({
+      id: 'msg-1',
+      sender: 'assistant',
+      content: svgPayload,
+      createdAt: '2026-09-19T09:00:00.000Z',
+    } as any);
+
+    expect(mapped.content).toBe('');
+  });
+
+  it('includes the latest valid vision JSON in the AI prompt when the frame is fresh', () => {
+    const context = buildVisionContextForPrompt({
+      cameraActive: true,
+      faceDetected: true,
+      faceCount: 1,
+      expression: 'happy',
+      confidence: 0.91,
+      landmarksDetected: true,
+      handDetected: false,
+      handCount: 0,
+      fingerCount: 0,
+      fingers: { thumb: false, index: false, middle: false, ring: false, pinky: false },
+      hands: [],
+      fingerConfidence: 0,
+      serviceAvailable: true,
+      lastUpdated: Date.now(),
+      timestamp: new Date().toISOString(),
+      processingTimeMs: 35,
+      available: true,
+    });
+
+    expect(context).toContain('"faceDetected": true');
+    expect(context).toContain('"expression": "happy"');
+    expect(context).toContain('latest valid vision JSON');
+  });
+
+  it('omits stale vision JSON from the AI prompt', () => {
+    const context = buildVisionContextForPrompt({
+      cameraActive: true,
+      faceDetected: true,
+      faceCount: 1,
+      expression: 'happy',
+      confidence: 0.91,
+      landmarksDetected: true,
+      handDetected: false,
+      handCount: 0,
+      fingerCount: 0,
+      fingers: { thumb: false, index: false, middle: false, ring: false, pinky: false },
+      hands: [],
+      fingerConfidence: 0,
+      serviceAvailable: true,
+      lastUpdated: Date.now() - 6000,
+      timestamp: new Date().toISOString(),
+      processingTimeMs: 35,
+      available: true,
+    });
+
+    expect(context).toContain('no recent usable frame data');
+    expect(context).not.toContain('"faceDetected": true');
   });
 });
